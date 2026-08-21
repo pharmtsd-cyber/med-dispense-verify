@@ -1,0 +1,12 @@
+<!-- 引入 JS (注意順序) -->
+<script src="js/config.js"></script>
+<script src="js/api.js"></script>
+<script>
+  // 當網頁載入完成時執行
+  document.addEventListener("DOMContentLoaded", async () => {
+    console.log("正在載入藥品清單...");
+    const drugs = await fetchActiveDrugs();
+    console.log("取得的藥品：", drugs);
+    // TODO: 將 drugs 資料渲染到左側選單
+  });
+</script>
