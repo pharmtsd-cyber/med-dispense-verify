@@ -47,9 +47,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         role: selectedEmp['權限']
       }));
       
-      alert(`歡迎登入，${selectedEmp['姓名']}！`);
-      
-      // TODO: 登入成功後，跳轉到申請單或調劑首頁
+      // 登入成功後，正式跳轉到首頁 (儀表板)
+      window.location.href = "dashboard.html"; 
     }
   });
 });
