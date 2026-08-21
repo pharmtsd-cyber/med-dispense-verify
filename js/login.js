@@ -8,7 +8,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const employeeSelect = document.getElementById("employee-select");
 
   // 1. 載入員工資料
-  employeeData = await fetchEmployees();
+  employeeData = await fetchData('getEmployeeData');
 
   if (employeeData.length > 0) {
     // 2. 將員工資料填入下拉選單
