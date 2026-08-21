@@ -50,7 +50,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       alert(`歡迎登入，${selectedEmp['姓名']}！`);
       
       // TODO: 登入成功後，跳轉到申請單或調劑首頁
-      // window.location.href = "dashboard.html"; 
     }
   });
 });
