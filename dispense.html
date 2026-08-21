@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>調劑與退藥</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+  <div class="container mt-4">
+    <div class="d-flex justify-content-between mb-3">
+      <h3>💊 條碼調劑與退藥</h3>
+      <a href="dashboard.html" class="btn btn-secondary">返回首頁</a>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+      <div class="card-body bg-warning bg-opacity-10">
+        <h5 class="text-danger">掃描模式就緒</h5>
+        <p class="mb-0">請直接使用條碼槍刷入藥袋條碼，或手動輸入條碼字串。</p>
+        <input type="text" id="barcode-input" class="form-control mt-2 border-primary" placeholder="等待條碼掃描..." autofocus>
+      </div>
+    </div>
+
+    <form id="dispense-form" class="card shadow-sm p-4">
+      <div class="row g-3">
+        <div class="col-md-3">
+          <label class="form-label">病歷號</label>
+          <input type="text" id="disp-patient-id" class="form-control" readonly>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">藥品代碼</label>
+          <input type="text" id="disp-drug-code" class="form-control" readonly>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">領藥號</label>
+          <input type="text" id="disp-no" class="form-control" readonly>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">作業類別</label>
+          <select id="disp-type" class="form-select">
+            <option value="調劑">調劑發藥</option>
+            <option value="退藥">退藥</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">數量</label>
+          <input type="number" id="disp-qty" class="form-control" required min="1">
+        </div>
+        <div class="col-md-9">
+          <label class="form-label">備註 (退藥請填理由)</label>
+          <input type="text" id="disp-note" class="form-control">
+        </div>
+      </div>
+      <button type="submit" class="btn btn-success mt-4 w-100">送出紀錄</button>
+    </form>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const barcodeInput = document.getElementById("barcode-input");
+      
+      // 監聽條碼槍輸入 (條碼槍最後通常會發送 Enter 鍵)
+      barcodeInput.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          const str = barcodeInput.value.trim();
+          if(!str) return;
+          
+          // 解析條碼: 病歷號;藥品代碼;領藥號;數量;條碼號;用法
+          const parts = str.split(';');
+          if (parts.length >= 4) {
+            document.getElementById("disp-patient-id").value = parts[0];
+            document.getElementById("disp-drug-code").value = parts[1];
+            document.getElementById("disp-no").value = parts[2];
+            document.getElementById("disp-qty").value = parts[3];
+            // 清空準備下次掃描
+            barcodeInput.value = ""; 
+          } else {
+            alert("條碼格式不符！請確認是否包含分號。");
+          }
+        }
+      });
+
+      // 處理表單送出
+      document.getElementById("dispense-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const user = JSON.parse(sessionStorage.getItem("currentUser"));
+        const dispType = document.getElementById("disp-type").value;
+        const qty = parseInt(document.getElementById("disp-qty").value);
+
+        const dataObj = {
+          "病歷號": document.getElementById("disp-patient-id").value,
+          "藥品代碼": document.getElementById("disp-drug-code").value,
+          "選擇調劑或退藥": dispType,
+          "調劑數量": dispType === "調劑" ? qty : 0,
+          "退藥數量": dispType === "退藥" ? qty : 0,
+          "手動或條碼": "條碼掃描",
+          "領藥號": document.getElementById("disp-no").value,
+          "備註": document.getElementById("disp-note").value,
+          "調劑日期": new Date().toLocaleDateString('zh-TW'),
+          "調劑時間": new Date().toLocaleTimeString('zh-TW'),
+          "藥師員工編號": user.id,
+          "藥師姓名": user.name
+        };
+
+        const res = await postData("submitDispense", dataObj);
+        if(res.status === 'success') {
+          alert("紀錄已成功儲存！");
+          document.getElementById("dispense-form").reset();
+          barcodeInput.focus();
+        } else {
+          alert("錯誤：" + res.message);
+        }
+      });
+    });
+  </script>
+</body>
+</html>
