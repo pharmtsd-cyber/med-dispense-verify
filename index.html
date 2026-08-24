@@ -79,14 +79,13 @@
       </ul>
     </div>
 
-    <!-- 右側主內容區 -->
+<!-- 右側主內容區 -->
     <div class="main-content p-4">
       
-      <!-- 視圖 1: 總覽首頁 -->
+      <!-- 視圖 1: 總覽首頁 (維持不變) -->
       <div id="view-overview" class="view-section">
         <div class="d-flex justify-content-between align-items-end mb-4 border-bottom pb-2">
           <h3 class="text-dark fw-bold mb-0">全院藥品總覽儀表板</h3>
-          <!-- 右上角篩選器 -->
           <div class="d-flex gap-2">
             <select id="overview-drug-filter" class="form-select form-select-sm" style="width: auto;">
               <option value="ALL">全部藥品</option>
@@ -97,22 +96,40 @@
             <button class="btn btn-sm btn-secondary" onclick="renderOverview()">查詢</button>
           </div>
         </div>
-        
-        <!-- 動態生成的各藥品區段會放在這裡 -->
         <div id="overview-content"></div>
       </div>
 
-      <!-- 視圖 2: 單一藥品主頁面 -->
+      <!-- 視圖 2: 單一藥品主頁面 (版面大幅優化) -->
       <div id="view-drug-dashboard" class="view-section d-none-important">
-        <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3">
-          <h3 id="current-drug-title" class="text-primary fw-bold mb-0">-- 藥品儀表板 --</h3>
+        
+        <!-- 頂部區塊：標題與全局篩選器 -->
+        <div class="d-flex justify-content-between align-items-start mb-3 border-bottom pb-3">
           <div>
-            <button class="btn btn-primary me-2" onclick="openApplicationForm()"><i class="bi bi-pencil-square"></i> 填寫申請單</button>
-            <button class="btn btn-success" onclick="openDispenseForm()"><i class="bi bi-upc-scan"></i> 調劑剩餘量檢核作業</button>
+            <h3 id="current-drug-title" class="text-primary fw-bold mb-3">-- 藥品儀表板 --</h3>
+            <!-- 按鈕移至標題下方 -->
+            <div class="d-flex gap-3">
+              <button class="btn btn-primary btn-lg shadow-sm" onclick="openApplicationForm()">
+                <i class="bi bi-pencil-square"></i> 填寫申請單
+              </button>
+              <button class="btn btn-success btn-lg shadow-sm" onclick="openDispenseForm()">
+                <i class="bi bi-upc-scan"></i> 調劑剩餘量檢核
+              </button>
+            </div>
+          </div>
+          
+          <!-- 右上角：控制整個頁面的時間篩選器 -->
+          <div class="card shadow-sm border-0 bg-light">
+            <div class="card-body p-2 d-flex gap-2">
+              <span class="align-self-center text-muted small fw-bold"><i class="bi bi-calendar3"></i> 區間查詢</span>
+              <input type="date" id="single-drug-date-start" class="form-control form-control-sm" style="width: auto;">
+              <span class="align-self-center text-muted">-</span>
+              <input type="date" id="single-drug-date-end" class="form-control form-control-sm" style="width: auto;">
+              <button class="btn btn-sm btn-secondary" onclick="refreshSingleDrugDashboard()">查詢</button>
+            </div>
           </div>
         </div>
         
-        <!-- 單一藥品統計數據與圖表 (透過 JS 複製總覽的該段內容) -->
+        <!-- 單一藥品統計數據與圖表 -->
         <div id="drug-dashboard-stats" class="mb-4"></div>
 
         <!-- 紀錄查詢區塊 -->
@@ -120,25 +137,46 @@
           <div class="card-header bg-white d-flex justify-content-between align-items-center">
             <h5 class="mb-0 fw-bold">近期作業紀錄</h5>
             <div class="d-flex gap-2">
-              <select class="form-select form-select-sm" style="width: auto;">
+              <select id="single-drug-record-type" class="form-select form-select-sm" style="width: auto;">
                 <option value="ALL">全部紀錄</option>
-                <option value="APP">申請單</option>
-                <option value="DIS">調劑/退藥</option>
+                <option value="APP">僅顯示申請單</option>
+                <option value="DIS">僅顯示調劑/退藥</option>
               </select>
-              <input type="date" id="record-date-start" class="form-control form-control-sm">
-              <span class="align-self-center text-muted">-</span>
-              <input type="date" id="record-date-end" class="form-control form-control-sm">
-              <button class="btn btn-sm btn-outline-secondary">篩選</button>
             </div>
           </div>
           <div class="card-body">
-            <div class="text-center text-muted py-4">報表資料串接中...</div>
+            <!-- 這裡未來會用 JS 把後端的資料生出來 -->
+            <div class="text-center text-muted py-4" id="single-drug-records-table">報表資料串接中...</div>
           </div>
         </div>
       </div>
 
-      <!-- 視圖 3 & 4 & 5 預留區... (申請單、調劑、維護) -->
-      <!-- 為了版面簡潔，此處省略，後續我們再把表單 HTML 塞進來 -->
+      <!-- 視圖 3: 填寫申請單 (預留) -->
+      <div id="view-application" class="view-section d-none-important">
+        <button class="btn btn-sm btn-secondary mb-3" onclick="switchView('drug-dashboard')"><i class="bi bi-arrow-left"></i> 返回藥品首頁</button>
+        <h3 class="mb-4 text-primary fw-bold">📝 填寫申請單</h3>
+        <div class="card shadow-sm p-4" id="application-container">
+          <!-- 稍後整合 application.html 內容 -->
+        </div>
+      </div>
+
+      <!-- 視圖 4: 調劑作業 (預留) -->
+      <div id="view-dispense" class="view-section d-none-important">
+        <button class="btn btn-sm btn-secondary mb-3" onclick="switchView('drug-dashboard')"><i class="bi bi-arrow-left"></i> 返回藥品首頁</button>
+        <h3 class="mb-4 text-success fw-bold">💊 調劑剩餘量檢核</h3>
+        <div id="dispense-container">
+          <!-- 稍後整合 dispense.html 內容 -->
+        </div>
+      </div>
+
+      <!-- 視圖 5: 藥品主檔維護 (修復區塊) -->
+      <div id="view-drug-manage" class="view-section d-none-important">
+        <h3 class="mb-4 text-secondary fw-bold">⚙️ 藥品主檔維護</h3>
+        <div class="card shadow-sm p-4" id="drug-manage-container">
+           <!-- 將您之前寫的 drug_manage.html 的內容直接貼在這裡面 -->
+           <h5 class="text-muted">（請將 drug_manage.html 的表單與表格區塊貼至此處）</h5>
+        </div>
+      </div>
 
     </div>
   </div>
