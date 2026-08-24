@@ -1,15 +1,25 @@
-// js/main.js
+// js/main.js 的最上方替換為：
 
 document.addEventListener("DOMContentLoaded", async () => {
   const today = new Date();
   const priorDate = new Date(new Date().setDate(today.getDate() - 14));
-  const todayStr = today.toISOString().split('T')[0];
-  const priorStr = priorDate.toISOString().split('T')[0];
+  // 調劑畫面預設近2天
+  const priorDate2 = new Date(new Date().setDate(today.getDate() - 2));
   
-  const dateInputs = ['overview-date-start', 'overview-date-end', 'single-drug-date-start', 'single-drug-date-end'];
-  dateInputs.forEach(id => {
+  const todayStr = today.toISOString().split('T')[0];
+  const priorStr14 = priorDate.toISOString().split('T')[0];
+  const priorStr2 = priorDate2.toISOString().split('T')[0];
+  
+  const dateInputs14 = ['overview-date-start', 'overview-date-end', 'single-drug-date-start', 'single-drug-date-end', 'app-hist-start', 'app-hist-end'];
+  dateInputs14.forEach(id => {
       const el = document.getElementById(id);
-      if(el) el.value = id.includes('start') ? priorStr : todayStr;
+      if(el) el.value = id.includes('start') ? priorStr14 : todayStr;
+  });
+
+  const dateInputs2 = ['disp-hist-start', 'disp-hist-end'];
+  dateInputs2.forEach(id => {
+      const el = document.getElementById(id);
+      if(el) el.value = id.includes('start') ? priorStr2 : todayStr;
   });
 
   const userStr = sessionStorage.getItem("currentUser");
