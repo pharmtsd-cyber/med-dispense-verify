@@ -7,17 +7,18 @@ let currentSelectedDrugCode = null;
 let chartInstances = {}; 
 
 document.addEventListener("DOMContentLoaded", async () => {
-  // 設定預設日期 (14天內)
   const today = new Date();
   const priorDate = new Date(new Date().setDate(today.getDate() - 14));
   
   const todayStr = today.toISOString().split('T')[0];
   const priorStr = priorDate.toISOString().split('T')[0];
   
+  // 設定總覽的日期
   document.getElementById("overview-date-start").value = priorStr;
   document.getElementById("overview-date-end").value = todayStr;
-  document.getElementById("record-date-start").value = priorStr;
-  document.getElementById("record-date-end").value = todayStr;
+  // 設定單一藥品 Dashboard 的日期
+  document.getElementById("single-drug-date-start").value = priorStr;
+  document.getElementById("single-drug-date-end").value = todayStr;
 
   const userStr = sessionStorage.getItem("currentUser");
   if (userStr) {
@@ -190,24 +191,39 @@ function openDrugDashboard(code, name, element) {
   
   document.getElementById("current-drug-title").innerText = `${name} (${code})`;
   
-  // 為了節省資源，我們直接把總覽頁面中「該藥品」的那一整塊 HTML 複製過來！
-  const statsContainer = document.getElementById("drug-dashboard-stats");
+  // 觸發該藥品的資料更新 (包含 Dashboard 與紀錄表)
+  refreshSingleDrugDashboard();
+}
+
+// 點擊右上角「查詢」時，會連動更新 Dashboard 數字、圖表與下方的紀錄表
+function refreshSingleDrugDashboard() {
+  const code = currentSelectedDrugCode;
+  if(!code) return;
   
-  // 呼叫 renderOverview 但只渲染該藥品 (背景隱藏執行)
+  const startDate = document.getElementById("single-drug-date-start").value;
+  const endDate = document.getElementById("single-drug-date-end").value;
+  const recordType = document.getElementById("single-drug-record-type").value;
+  
+  // 1. 更新上半部的圖表與數據 (利用總覽的渲染機制)
+  const statsContainer = document.getElementById("drug-dashboard-stats");
   document.getElementById("overview-drug-filter").value = code;
+  // 實務上這裡還要將 startDate 與 endDate 傳入 renderOverview，讓圖表跟著日期變動
   renderOverview(); 
   
-  // 將總覽產生的卡片內容，搬移到單一藥品頁面
   setTimeout(() => {
     const cardContent = document.getElementById(`overview-card-${code}`);
     if(cardContent) {
        statsContainer.innerHTML = cardContent.innerHTML;
-       // 重繪圖表
        drawChart(code);
     }
-    // 把總覽的 filter 復原
     document.getElementById("overview-drug-filter").value = "ALL";
   }, 150);
+
+  // 2. 更新下半部的紀錄表
+  document.getElementById("single-drug-records-table").innerHTML = 
+    `正在撈取 <b>${startDate}</b> 至 <b>${endDate}</b> 的 ${recordType === 'ALL' ? '所有' : recordType} 紀錄...`;
+    
+  // TODO: 呼叫 getApplications 與 getDispenseLogs 來渲染下方的表格
 }
 
 // ================= 功能按鈕 =================
