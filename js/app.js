@@ -1,6 +1,7 @@
 // js/app.js
 let activeDrugs = [];
 let employeeData = [];
+let unitData = [];
 let currentSelectedDrugCode = null;
 
 // 用來儲存建立的 Chart 實例，方便切換時銷毀與重繪
@@ -72,6 +73,7 @@ async function initApp(user) {
 
   // 載入藥品清單
   activeDrugs = await fetchData('getActiveDrugs');
+  unitData = await fetchData('getUnits');
   const menuContainer = document.getElementById("dynamic-drug-menu");
   const overviewFilter = document.getElementById("overview-drug-filter");
   
@@ -235,6 +237,33 @@ function openDispenseForm() {
   alert(`開啟調劑剩餘量檢核作業 (鎖定藥品代碼: ${currentSelectedDrugCode}) - 開發中`);
 }
 
+
+// 3. 新增「重選藥師」功能 (貼在 app.js 隨處空白處)
+function enablePharmacistChange(prefix) {
+  const inputId = document.getElementById(`${prefix}-pharmacist-id`);
+  const inputName = document.getElementById(`${prefix}-pharmacist-name`);
+  
+  inputId.readOnly = false;
+  inputId.classList.remove("bg-light");
+  inputId.value = "";
+  inputName.value = "";
+  inputId.focus();
+  
+  inputId.addEventListener('blur', function handler() {
+    const emp = employeeData.find(e => e['員工編號'] === inputId.value.trim());
+    if(emp) {
+      inputName.value = emp['姓名'];
+      inputId.readOnly = true;
+      inputId.classList.add("bg-light");
+    } else {
+      if(inputId.value.trim() !== "") {
+        alert('找不到此員工編號，請重新輸入！');
+        inputId.focus();
+      }
+    }
+  });
+}
+
 // ==========================================
 // 藥品主檔維護 (整合邏輯)
 // ==========================================
@@ -328,13 +357,16 @@ document.querySelector('a[onclick="switchView(\'drug-manage\', this)"]').addEven
 function openApplicationForm() {
   if(!currentSelectedDrugCode) return;
   const drug = activeDrugs.find(d => d['藥品代碼'] === currentSelectedDrugCode);
-  
-  // 顯示藥品名稱在標題
+  const user = JSON.parse(sessionStorage.getItem("currentUser"));
+
   document.getElementById("app-form-drug-name").innerText = `${drug['藥品名稱']} (${drug['藥品代碼']})`;
   document.getElementById("app-back-drug-name").innerText = drug['藥品名稱'];
-  
-  // 清空表單，準備輸入病歷號
   document.getElementById("app-form").reset();
+  
+  // 帶入預設登入藥師
+  document.getElementById("app-pharmacist-id").value = user.id;
+  document.getElementById("app-pharmacist-name").value = user.name;
+  
   document.getElementById("app-type").disabled = true;
   document.getElementById("app-type").innerHTML = '<option value="">-- 請先輸入病歷號 --</option>';
   
@@ -345,14 +377,18 @@ function openApplicationForm() {
 function openDispenseForm() {
   if(!currentSelectedDrugCode) return;
   const drug = activeDrugs.find(d => d['藥品代碼'] === currentSelectedDrugCode);
+  const user = JSON.parse(sessionStorage.getItem("currentUser"));
   
   document.getElementById("disp-form-drug-name").innerText = `${drug['藥品名稱']} (${drug['藥品代碼']})`;
   document.getElementById("disp-back-drug-name").innerText = drug['藥品名稱'];
+  document.getElementById("dispense-form").classList.add("d-none-important"); // 隱藏表單
   
-  document.getElementById("dispense-form").reset();
-  document.getElementById("btn-submit-disp").classList.add("d-none-important");
+  // 帶入預設登入藥師
+  document.getElementById("disp-pharmacist-id").value = user.id;
+  document.getElementById("disp-pharmacist-name").value = user.name;
   
   switchView('dispense');
+  document.getElementById("barcode-input").value = "";
   document.getElementById("barcode-input").focus();
 }
 
@@ -431,29 +467,13 @@ selectAppType.addEventListener("change", () => {
   inputManager.required = false;
 
   if (type === "展延申請") {
-    inputAppDays.style.display = "none";
-    selectAppDays.style.display = "block";
-    inputAppDays.required = false;
-    selectAppDays.required = true;
-    
-    const defaultDays = parseInt(drug['預設申請天數'] || 3);
-    const maxExtDays = parseInt(drug['展延天數上限'] || 5);
-    
-    selectAppDays.innerHTML = '<option value="">請選擇展延天數</option>';
-    for(let i = defaultDays + 1; i <= maxExtDays; i++) {
-       selectAppDays.innerHTML += `<option value="${i}">${i} 天</option>`;
-    }
+    // 展延：直接鎖定為展延最大天數與數量
+    inputAppDays.value = drug['展延天數上限'] || 5;
     inputAppQty.value = drug['展延數量上限'] || 2;
   } else {
-    // 初次 或 複陽
-    inputAppDays.style.display = "block";
-    selectAppDays.style.display = "none";
-    inputAppDays.required = true;
-    selectAppDays.required = false;
-    
+    // 初次或複陽：直接鎖定為預設最大天數與數量
     inputAppDays.value = drug['預設申請天數'] || 3;
     inputAppQty.value = drug['預設申請數量'] || 3;
-    
     if (type === "複陽申請") {
       managerGroup.style.display = "block";
       inputManager.required = true;
@@ -468,32 +488,31 @@ document.getElementById("app-form").addEventListener("submit", async (e) => {
   btnSubmitApp.innerText = "傳送中...";
   
   const type = selectAppType.value;
-  const user = JSON.parse(sessionStorage.getItem("currentUser"));
   
   const dataObj = {
     "病歷號": inputAppPid.value.trim(),
     "藥品代碼": currentSelectedDrugCode,
     "申請類別": type,
-    "申請天數": type === "展延申請" ? selectAppDays.value : inputAppDays.value,
+    "申請天數": inputAppDays.value, // 因為已經是唯讀鎖定值
     "申請數量": inputAppQty.value,
     "處理單位": document.getElementById("app-unit").value,
     "申請日期": new Date().toLocaleDateString('zh-TW'),
     "收單時間": new Date().toLocaleTimeString('zh-TW'),
-    "主管核准人": inputManager.value,
+    "主管核准人": document.getElementById("app-manager").value,
     "申請備註": document.getElementById("app-note").value,
-    "藥師員工編號": user.id,
-    "藥師姓名": user.name
+    "藥師員工編號": document.getElementById("app-pharmacist-id").value,
+    "藥師姓名": document.getElementById("app-pharmacist-name").value
   };
 
   const res = await postData("submitApplication", dataObj);
   if(res.status === 'success') {
     alert("申請單已成功送出！");
     switchView('drug-dashboard');
-    refreshSingleDrugDashboard(); // 回去更新 Dashboard 數據
+    refreshSingleDrugDashboard(); 
   } else {
     alert("錯誤：" + res.message);
     btnSubmitApp.disabled = false;
-    btnSubmitApp.innerText = "送出申請";
+    btnSubmitApp.innerText = "確認送出申請";
   }
 });
 
@@ -502,108 +521,113 @@ document.getElementById("app-form").addEventListener("submit", async (e) => {
 // 核心邏輯二：條碼解析與調劑總量檢核
 // ==========================================
 const barcodeInput = document.getElementById("barcode-input");
-const btnCheckLimit = document.getElementById("btn-check-limit");
 const btnSubmitDisp = document.getElementById("btn-submit-disp");
+const dispForm = document.getElementById("dispense-form");
 
-// 監聽條碼槍輸入
-barcodeInput.addEventListener("keypress", (e) => {
+barcodeInput.addEventListener("keypress", async (e) => {
   if (e.key === "Enter") {
     e.preventDefault();
     const str = barcodeInput.value.trim();
     if(!str) return;
     
-    // 解析條碼: 病歷號;藥品代碼;領藥號;數量;條碼號;用法
+    // 檢查單位與藥師是否設定
+    if(!document.getElementById("disp-unit").value || !document.getElementById("disp-pharmacist-id").value) {
+       alert("請先確認「處理單位」與「作業藥師」已設定！");
+       return;
+    }
+
     const parts = str.split(';');
     if (parts.length >= 4) {
       if(parts[1] !== currentSelectedDrugCode) {
-         alert(`⚠️ 條碼解析錯誤：藥品代碼 (${parts[1]}) 與當前頁面 (${currentSelectedDrugCode}) 不符！`);
+         alert(`⚠️ 條碼解析錯誤：藥袋藥品代碼 (${parts[1]}) 與系統當前頁面 (${currentSelectedDrugCode}) 不符！`);
          barcodeInput.value = "";
          return;
       }
-      document.getElementById("disp-patient-id").value = parts[0];
+      
+      const pid = parts[0];
+      const qty = parseInt(parts[3]);
+      const type = document.getElementById("disp-type").value;
+      
+      document.getElementById("disp-patient-id").value = pid;
       document.getElementById("disp-no").value = parts[2];
-      document.getElementById("disp-qty").value = parts[3];
+      document.getElementById("disp-qty").value = qty;
       barcodeInput.value = ""; 
       
-      // 成功解析後，隱藏送出按鈕，強迫使用者點擊「檢核」
-      btnSubmitDisp.classList.add("d-none-important");
+      // 👉 即時啟動檢核程序
+      dispForm.classList.remove("d-none-important");
+      btnSubmitDisp.disabled = true;
+      document.getElementById("disp-check-result").className = "alert alert-warning fw-bold";
+      document.getElementById("disp-check-result").innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>正在與後端連線檢核額度...';
+      document.getElementById("disp-history-table").innerHTML = "";
+
+      // 撈取資料
+      const apps = await fetchData('getApplications');
+      const logs = await fetchData('getDispenseLogs');
+      
+      let totalAllowed = 0, totalDispensed = 0, totalReturned = 0;
+      let historyHtml = "";
+      
+      // 計算申請與生成歷史紀錄表
+      apps.forEach(app => {
+        if(app['病歷號'] === pid && app['藥品代碼'] === currentSelectedDrugCode && app['作廢'] !== 'Y') {
+          totalAllowed += parseInt(app['申請數量'] || 0);
+          historyHtml += `<tr><td>${app['申請日期']} <span class="badge bg-primary">${app['申請類別']}</span></td><td class="text-primary fw-bold">+${app['申請數量']}</td><td>-</td><td>-</td></tr>`;
+        }
+      });
+
+      logs.forEach(log => {
+        if(log['病歷號'] === pid && log['藥品代碼'] === currentSelectedDrugCode && log['作廢'] !== 'Y') {
+          totalDispensed += parseInt(log['調劑數量'] || 0);
+          totalReturned += parseInt(log['退藥數量'] || 0);
+          const isDisp = parseInt(log['調劑數量']) > 0;
+          historyHtml += `<tr><td>${log['調劑日期']} <span class="badge ${isDisp ? 'bg-success' : 'bg-danger'}">${isDisp ? '調劑' : '退藥'}</span></td><td>-</td><td class="text-success">${isDisp ? log['調劑數量'] : '-'}</td><td class="text-danger">${!isDisp ? log['退藥數量'] : '-'}</td></tr>`;
+        }
+      });
+      
+      document.getElementById("disp-history-table").innerHTML = historyHtml || '<tr><td colspan="4" class="text-muted">近期無此藥品作業紀錄</td></tr>';
+
+      const currentUsed = totalDispensed - totalReturned;
+      const remaining = totalAllowed - currentUsed;
+      
+      // 邏輯判定
+      if (type === "調劑") {
+        if (totalAllowed === 0) {
+          document.getElementById("disp-check-result").className = "alert alert-danger fw-bold";
+          document.getElementById("disp-check-result").innerText = "⛔ 阻擋：此病患尚未申請此藥品！";
+          return;
+        }
+        if (qty > remaining) {
+          document.getElementById("disp-check-result").className = "alert alert-danger fw-bold";
+          document.getElementById("disp-check-result").innerText = `⛔ 阻擋：超量調劑！剩餘可用額度僅剩 ${remaining} 支 (欲調劑 ${qty} 支)`;
+          return;
+        }
+        document.getElementById("disp-check-result").className = "alert alert-success fw-bold";
+        document.getElementById("disp-check-result").innerText = `✅ 檢核通過！目前剩餘額度：${remaining} 支 ➔ 本次調劑後剩餘：${remaining - qty} 支`;
+        btnSubmitDisp.disabled = false;
+        
+      } else { // 退藥
+        if (qty > currentUsed) {
+          document.getElementById("disp-check-result").className = "alert alert-danger fw-bold";
+          document.getElementById("disp-check-result").innerText = `⛔ 阻擋：退藥數量 (${qty}) 大於總已領藥量 (${currentUsed})！`;
+          return;
+        }
+        document.getElementById("disp-check-result").className = "alert alert-success fw-bold";
+        document.getElementById("disp-check-result").innerText = `✅ 退藥檢核通過！本次退入將恢復 ${qty} 支額度。`;
+        btnSubmitDisp.disabled = false;
+      }
+
     } else {
       alert("條碼格式不符！");
     }
   }
 });
 
-// 送出前檢核剩餘量 (這部分需要向後端撈取所有紀錄來計算)
-btnCheckLimit.addEventListener("click", async () => {
-  const pid = document.getElementById("disp-patient-id").value.trim();
-  const qty = parseInt(document.getElementById("disp-qty").value);
-  const type = document.getElementById("disp-type").value;
-  
-  if(!pid || !qty) { alert("請先刷入條碼或輸入完整資料"); return; }
-  
-  btnCheckLimit.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>計算中...';
-  btnCheckLimit.disabled = true;
-
-  // 為了精準計算，我們需要把 Applications 跟 DispenseLogs 都撈回來算
-  // 實務上這段邏輯寫在 GAS 後端會更好，但為了讓您好維護，我們先在前端處理
-  const apps = await fetchData('getApplications');
-  const logs = await fetchData('getDispenseLogs');
-  
-  // 計算累積申請量
-  let totalAllowed = 0;
-  apps.forEach(app => {
-    if(app['病歷號'] === pid && app['藥品代碼'] === currentSelectedDrugCode && app['作廢'] !== 'Y') {
-      totalAllowed += parseInt(app['申請數量'] || 0);
-    }
-  });
-
-  // 計算已調劑與退藥量
-  let totalDispensed = 0;
-  let totalReturned = 0;
-  logs.forEach(log => {
-    if(log['病歷號'] === pid && log['藥品代碼'] === currentSelectedDrugCode && log['作廢'] !== 'Y') {
-      totalDispensed += parseInt(log['調劑數量'] || 0);
-      totalReturned += parseInt(log['退藥數量'] || 0);
-    }
-  });
-
-  const currentUsed = totalDispensed - totalReturned;
-  const remaining = totalAllowed - currentUsed;
-  
-  btnCheckLimit.innerHTML = '🔍 送出前：檢核剩餘可用量';
-  btnCheckLimit.disabled = false;
-
-  // 判斷邏輯
-  if (type === "調劑") {
-    if (totalAllowed === 0) {
-      alert("⚠️ 阻擋：此病患尚未申請此藥品！");
-      return;
-    }
-    if (qty > remaining) {
-      alert(`⚠️ 阻擋：超量調劑！\n累積申請：${totalAllowed}\n已發藥量：${currentUsed}\n剩餘額度：${remaining}\n本次欲調劑：${qty}`);
-      return;
-    }
-    alert(`✅ 檢核通過！\n剩餘額度：${remaining} -> 調劑後剩餘：${remaining - qty}`);
-  } else {
-    // 退藥
-    if (qty > currentUsed) {
-      alert(`⚠️ 阻擋：退藥數量 (${qty}) 大於總調劑量 (${currentUsed})！`);
-      return;
-    }
-    alert(`✅ 檢核通過！本次退藥將恢復額度。`);
-  }
-
-  // 檢核通過，顯示送出按鈕
-  btnSubmitDisp.classList.remove("d-none-important");
-});
-
-// 提交調劑單
-document.getElementById("dispense-form").addEventListener("submit", async (e) => {
+// 8. 替換 調劑單 Submit 邏輯 (改抓畫面的藥師與單位)
+dispForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   btnSubmitDisp.disabled = true;
   btnSubmitDisp.innerText = "寫入紀錄中...";
   
-  const user = JSON.parse(sessionStorage.getItem("currentUser"));
   const type = document.getElementById("disp-type").value;
   const qty = parseInt(document.getElementById("disp-qty").value);
 
@@ -615,22 +639,24 @@ document.getElementById("dispense-form").addEventListener("submit", async (e) =>
     "退藥數量": type === "退藥" ? qty : 0,
     "手動或條碼": "條碼掃描",
     "領藥號": document.getElementById("disp-no").value,
+    "處理單位": document.getElementById("disp-unit").value,
     "備註": document.getElementById("disp-note").value,
     "調劑日期": new Date().toLocaleDateString('zh-TW'),
     "調劑時間": new Date().toLocaleTimeString('zh-TW'),
-    "藥師員工編號": user.id,
-    "藥師姓名": user.name
+    "藥師員工編號": document.getElementById("disp-pharmacist-id").value,
+    "藥師姓名": document.getElementById("disp-pharmacist-name").value
   };
 
   const res = await postData("submitDispense", dataObj);
   if(res.status === 'success') {
     alert("調劑紀錄已成功儲存！");
-    document.getElementById("dispense-form").reset();
-    btnSubmitDisp.classList.add("d-none-important");
-    barcodeInput.focus();
+    dispForm.reset();
+    dispForm.classList.add("d-none-important");
+    document.getElementById("barcode-input").focus();
+    btnSubmitDisp.innerText = "確認寫入紀錄";
   } else {
     alert("錯誤：" + res.message);
     btnSubmitDisp.disabled = false;
-    btnSubmitDisp.innerText = "確認送出紀錄";
+    btnSubmitDisp.innerText = "確認寫入紀錄";
   }
 });
