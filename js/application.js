@@ -100,20 +100,30 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+// js/application.js (摘錄 Submit 事件部分，其餘相同)
+
   document.getElementById("app-form").addEventListener("submit", async (e) => {
     e.preventDefault();
+    if(!checkNetwork()) return; // 👉 斷線檢查
+    
     btnSubmitApp.disabled = true;
     btnSubmitApp.innerText = "傳送中...";
     
+    const now = new Date();
+    // 啟用日期，如果沒填預設今天
+    const startDateRaw = document.getElementById("app-start-date").value;
+    const startDateStr = startDateRaw ? startDateRaw.replace(/-/g, '/') : formatAsDate(now); 
+
     const dataObj = {
       "病歷號": inputAppPid.value.trim().toUpperCase(),
       "藥品代碼": State.currentSelectedDrugCode,
       "申請類別": selectAppType.value,
+      "啟用日期": startDateStr,
       "申請天數": inputAppDays.value, 
       "申請數量": inputAppQty.value,
       "處理單位": document.getElementById("app-unit").value,
-      "申請日期": new Date().toLocaleDateString('zh-TW'),
-      "收單時間": new Date().toLocaleTimeString('zh-TW'),
+      "申請日期": formatAsDate(now), // YYYY/MM/DD
+      "收單時間": formatAsTime(now), // HH:mm:ss
       "主管核准人": document.getElementById("app-manager").value,
       "申請備註": document.getElementById("app-note").value,
       "藥師員工編號": document.getElementById("app-pharmacist-id").value,
@@ -123,6 +133,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const res = await postData("submitApplication", dataObj);
     if(res.status === 'success') {
       alert("申請單已成功送出！");
+      // 👉 送出成功後，直接塞入前端快取，免重整
+      State.applications.push(dataObj);
+      
       switchView('drug-dashboard');
       if (typeof refreshSingleDrugDashboard === "function") refreshSingleDrugDashboard(); 
     } else {
