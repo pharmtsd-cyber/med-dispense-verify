@@ -6,7 +6,6 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body class="bg-light">
-  <!-- 導覽列 -->
   <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
     <div class="container-fluid">
       <span class="navbar-brand">藥品調劑檢核系統</span>
@@ -15,26 +14,29 @@
   </nav>
 
   <div class="container mt-4">
-    <div class="row mb-4">
-      <div class="col-md-6">
-        <a href="application.html" class="btn btn-outline-primary w-100 py-4 fs-4 fw-bold">📝 填寫申請單</a>
+    <!-- 三大核心功能選單 -->
+    <div class="row mb-4 g-3">
+      <div class="col-md-4">
+        <a href="application.html" class="btn btn-outline-primary w-100 py-4 fs-4 fw-bold shadow-sm">📝 填寫申請單</a>
       </div>
-      <div class="col-md-6">
-        <a href="dispense.html" class="btn btn-outline-success w-100 py-4 fs-4 fw-bold">💊 條碼調劑 / 退藥</a>
+      <div class="col-md-4">
+        <a href="drug_workspace.html" class="btn btn-outline-success w-100 py-4 fs-4 fw-bold shadow-sm">💊 藥品調劑中心</a>
+      </div>
+      <div class="col-md-4">
+        <a href="drug_manage.html" class="btn btn-outline-secondary w-100 py-4 fs-4 fw-bold shadow-sm">⚙️ 藥品主檔維護</a>
       </div>
     </div>
 
     <div class="card shadow-sm">
-      <div class="card-header bg-white"><h5 class="mb-0">今日系統狀態</h5></div>
+      <div class="card-header bg-white"><h5 class="mb-0">系統公告與狀態</h5></div>
       <div class="card-body">
-        <p>歡迎使用系統，目前各項報表與數據彙整功能建置中...</p>
+        <p>歡迎使用系統，請選擇上方功能進行作業。</p>
       </div>
     </div>
   </div>
 
   <script>
     document.addEventListener("DOMContentLoaded", () => {
-      // 驗證登入狀態
       const userStr = sessionStorage.getItem("currentUser");
       if (!userStr) {
         alert("請先登入！");
