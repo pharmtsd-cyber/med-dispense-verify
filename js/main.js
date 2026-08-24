@@ -1,6 +1,6 @@
 // js/main.js
+
 document.addEventListener("DOMContentLoaded", async () => {
-  // 預設日期設定
   const today = new Date();
   const priorDate = new Date(new Date().setDate(today.getDate() - 14));
   const todayStr = today.toISOString().split('T')[0];
@@ -20,15 +20,28 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 });
 
+// ================= 登入邏輯 =================
 async function initLogin() {
   document.getElementById("login-container").classList.remove("d-none-important");
   document.getElementById("app-container").classList.add("d-none-important");
   
+  // 登入前同時載入員工與單位資料
   State.employeeData = await fetchData('getEmployeeData');
+  State.unitData = await fetchData('getUnits');
   
   if (State.employeeData.length > 0) {
     document.getElementById("loading-msg").classList.add("d-none-important");
     document.getElementById("login-form").classList.remove("d-none-important");
+    
+    // 填入登入單位選項
+    const loginUnitSelect = document.getElementById("login-unit-select");
+    if(loginUnitSelect && State.unitData.length > 0) {
+      let unitOpts = '<option value="" selected disabled>-- 請選擇登入單位 --</option>';
+      State.unitData.forEach(u => {
+        if(u['單位名稱']) unitOpts += `<option value="${u['單位名稱']}">${u['單位名稱']}</option>`;
+      });
+      loginUnitSelect.innerHTML = unitOpts;
+    }
   } else {
     document.getElementById("loading-msg").innerText = "無法載入員工資料，請檢查連線。";
     document.getElementById("loading-msg").className = "alert alert-danger text-center";
@@ -36,11 +49,20 @@ async function initLogin() {
 
   document.getElementById("login-form").addEventListener("submit", (e) => {
     e.preventDefault();
-    const inputId = document.getElementById("employee-input").value.trim();
-    const selectedEmp = State.employeeData.find(emp => emp['員工編號'] === inputId);
+    // 統一轉大寫
+    const inputId = document.getElementById("employee-input").value.trim().toUpperCase();
+    const loginUnit = document.getElementById("login-unit-select").value;
+    
+    // 尋找員工時也將來源轉大寫比對，避免大小寫不一
+    const selectedEmp = State.employeeData.find(emp => String(emp['員工編號']).toUpperCase() === inputId);
     
     if (selectedEmp) {
-      const user = { id: selectedEmp['員工編號'], name: selectedEmp['姓名'], role: selectedEmp['權限'] };
+      const user = { 
+        id: inputId, 
+        name: selectedEmp['姓名'], 
+        role: selectedEmp['權限'],
+        unit: loginUnit // 紀錄登入單位
+      };
       sessionStorage.setItem("currentUser", JSON.stringify(user));
       window.location.reload(); 
     } else {
@@ -55,10 +77,12 @@ function logout() {
   window.location.reload();
 }
 
+// ================= 系統初始化 =================
 async function initApp(user) {
   document.getElementById("login-container").classList.add("d-none-important");
   document.getElementById("app-container").classList.remove("d-none-important");
-  document.getElementById("user-info").innerText = `${user.name} (${user.role})`;
+  // 顯示包含單位資訊
+  document.getElementById("user-info").innerText = `${user.name} (${user.unit})`;
 
   State.activeDrugs = await fetchData('getActiveDrugs');
   State.unitData = await fetchData('getUnits');
@@ -69,7 +93,7 @@ async function initApp(user) {
   if(State.activeDrugs.length > 0) {
     menuContainer.innerHTML = '<div class="px-3 pt-3 pb-1 text-secondary small fw-bold">藥品專區</div>';
     State.activeDrugs.forEach(drug => {
-      const code = drug['藥品代碼'];
+      const code = String(drug['藥品代碼']).toUpperCase();
       const name = drug['藥品名稱'];
       menuContainer.innerHTML += `
         <li class="nav-item">
@@ -83,7 +107,6 @@ async function initApp(user) {
   }
   
   populateUnitSelects();
-  
   if (typeof renderOverview === "function") renderOverview();
 }
 
@@ -111,7 +134,7 @@ function switchView(viewId, element = null) {
   }
 }
 
-// 修復：藥師重選的無限迴圈問題
+// ================= 重選藥師 (Enter 鍵觸發) =================
 function enablePharmacistChange(prefix) {
   const inputId = document.getElementById(`${prefix}-pharmacist-id`);
   const inputName = document.getElementById(`${prefix}-pharmacist-name`);
@@ -122,20 +145,30 @@ function enablePharmacistChange(prefix) {
   inputName.value = "";
   inputId.focus();
   
-  const checkPharmacist = function() {
-    const val = inputId.value.trim();
-    if(val === "") return; 
-    
-    const emp = State.employeeData.find(e => e['員工編號'] === val);
-    if(emp) {
-      inputName.value = emp['姓名'];
-      inputId.readOnly = true;
-      inputId.classList.add("bg-light");
-    } else {
-      alert('找不到此員工編號，請重新輸入！');
-      inputId.value = ""; // 清空欄位而不是強制 focus，避免迴圈
+  // 移除可能存在的舊 Listener 避免重複觸發
+  if (inputId._phHandler) {
+    inputId.removeEventListener('keypress', inputId._phHandler);
+  }
+  
+  // 綁定 Keypress 事件 (尋找 Enter)
+  inputId._phHandler = function(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault(); // 阻擋表單送出
+      const val = inputId.value.trim().toUpperCase(); // 轉大寫
+      if(val === "") return; 
+      
+      const emp = State.employeeData.find(e => String(e['員工編號']).toUpperCase() === val);
+      if(emp) {
+        inputName.value = emp['姓名'];
+        inputId.value = val;
+        inputId.readOnly = true;
+        inputId.classList.add("bg-light");
+      } else {
+        alert('找不到此員工編號，請重新輸入！');
+        inputId.value = "";
+      }
     }
-    inputId.removeEventListener('blur', checkPharmacist);
   };
-  inputId.addEventListener('blur', checkPharmacist);
+  
+  inputId.addEventListener('keypress', inputId._phHandler);
 }
