@@ -1,7 +1,7 @@
 // js/application.js
 function openApplicationForm() {
   if(!State.currentSelectedDrugCode) return;
-  const drug = State.activeDrugs.find(d => d['藥品代碼'] === State.currentSelectedDrugCode);
+  const drug = State.activeDrugs.find(d => String(d['藥品代碼']).toUpperCase() === State.currentSelectedDrugCode);
   const user = JSON.parse(sessionStorage.getItem("currentUser"));
 
   document.getElementById("app-form-drug-name").innerText = `${drug['藥品名稱']} (${drug['藥品代碼']})`;
@@ -10,8 +10,10 @@ function openApplicationForm() {
   const form = document.getElementById("app-form");
   if(form) form.reset();
   
+  // 帶入預設登入藥師與單位
   document.getElementById("app-pharmacist-id").value = user.id;
   document.getElementById("app-pharmacist-name").value = user.name;
+  document.getElementById("app-unit").value = user.unit || "";
   
   document.getElementById("app-type").disabled = true;
   document.getElementById("app-type").innerHTML = '<option value="">-- 請先輸入病歷號 --</option>';
@@ -34,7 +36,9 @@ document.addEventListener("DOMContentLoaded", () => {
   if(!inputAppPid) return;
 
   inputAppPid.addEventListener("blur", async () => {
-    const pid = inputAppPid.value.trim();
+    // 轉大寫並寫回欄位
+    const pid = inputAppPid.value.trim().toUpperCase();
+    inputAppPid.value = pid;
     const drugCode = State.currentSelectedDrugCode;
     
     if (pid && drugCode) {
@@ -78,13 +82,11 @@ document.addEventListener("DOMContentLoaded", () => {
   selectAppType.addEventListener("change", () => {
     const type = selectAppType.value;
     if(!type) return;
-    
-    const drug = State.activeDrugs.find(d => d['藥品代碼'] === State.currentSelectedDrugCode);
+    const drug = State.activeDrugs.find(d => String(d['藥品代碼']).toUpperCase() === State.currentSelectedDrugCode);
     btnSubmitApp.disabled = false;
     managerGroup.style.display = "none";
     inputManager.required = false;
 
-    // 依需求：直接鎖定為設定檔的最大值
     if (type === "展延申請") {
       inputAppDays.value = drug['展延天數上限'] || 5;
       inputAppQty.value = drug['展延數量上限'] || 2;
@@ -104,7 +106,7 @@ document.addEventListener("DOMContentLoaded", () => {
     btnSubmitApp.innerText = "傳送中...";
     
     const dataObj = {
-      "病歷號": inputAppPid.value.trim(),
+      "病歷號": inputAppPid.value.trim().toUpperCase(),
       "藥品代碼": State.currentSelectedDrugCode,
       "申請類別": selectAppType.value,
       "申請天數": inputAppDays.value, 
