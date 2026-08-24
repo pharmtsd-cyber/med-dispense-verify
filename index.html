@@ -148,20 +148,40 @@
         </div>
       </div>
 
-      <!-- 視圖 3: 填寫申請單 -->
+<!-- 視圖 3: 填寫申請單 -->
       <div id="view-application" class="view-section d-none-important">
         <button class="btn btn-sm btn-secondary mb-3" onclick="switchView('drug-dashboard')"><i class="bi bi-arrow-left"></i> 返回 <span id="app-back-drug-name"></span></button>
         <h3 class="mb-4 text-primary fw-bold">📝 填寫申請單 (<span id="app-form-drug-name" class="text-danger"></span>)</h3>
+        
         <div class="card shadow-sm p-4">
           <form id="app-form">
-            <div class="row g-3">
-              <div class="col-md-4">
-                <label class="form-label">病歷號</label>
-                <input type="text" id="app-patient-id" class="form-control" required autofocus>
+            <!-- 新增：藥師與單位設定區 -->
+            <div class="row g-3 mb-3 pb-3 border-bottom border-light">
+              <div class="col-md-3">
+                <label class="form-label text-muted small fw-bold">填寫藥師編號</label>
+                <div class="input-group">
+                  <input type="text" id="app-pharmacist-id" class="form-control bg-light" readonly required>
+                  <button class="btn btn-outline-secondary" type="button" onclick="enablePharmacistChange('app')">重選</button>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label text-muted small fw-bold">藥師姓名</label>
+                <input type="text" id="app-pharmacist-name" class="form-control bg-light border-0" readonly required>
               </div>
               <div class="col-md-4">
-                <label class="form-label">申請類別</label>
-                <select id="app-type" class="form-select" required disabled>
+                <label class="form-label text-muted small fw-bold">處理單位</label>
+                <select id="app-unit" class="form-select border-primary" required></select>
+              </div>
+            </div>
+
+            <div class="row g-3">
+              <div class="col-md-4">
+                <label class="form-label fw-bold">病歷號</label>
+                <input type="text" id="app-patient-id" class="form-control" required autofocus placeholder="輸入後離開欄位自動檢核">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label fw-bold">申請類別</label>
+                <select id="app-type" class="form-select border-primary" required disabled>
                   <option value="">-- 請先輸入病歷號 --</option>
                   <option value="初次申請" id="opt-initial">初次申請</option>
                   <option value="展延申請" id="opt-extend">展延申請</option>
@@ -172,28 +192,23 @@
                 <div id="alert-msg" class="alert alert-warning mb-0"></div>
               </div>
               <div class="col-md-4">
-                <label class="form-label">申請天數</label>
-                <input type="number" id="app-days" class="form-control" required min="1">
-                <select id="app-days-select" class="form-select" style="display:none;"></select>
+                <label class="form-label fw-bold">申請天數 <span class="text-danger small">(系統鎖定最大值)</span></label>
+                <input type="number" id="app-days" class="form-control bg-light" required readonly>
               </div>
               <div class="col-md-4">
-                <label class="form-label">申請數量 (支)</label>
-                <input type="number" id="app-qty" class="form-control" required min="1">
+                <label class="form-label fw-bold">申請數量 <span class="text-danger small">(系統鎖定最大值)</span></label>
+                <input type="number" id="app-qty" class="form-control bg-light" required readonly>
               </div>
-              <div class="col-md-4">
-                <label class="form-label">處理單位</label>
-                <input type="text" id="app-unit" class="form-control" required>
-              </div>
-              <div class="col-md-6" id="manager-input-group" style="display:none;">
+              <div class="col-md-4" id="manager-input-group" style="display:none;">
                 <label class="form-label text-danger fw-bold">主管核准人 (複陽必填)</label>
                 <input type="text" id="app-manager" class="form-control border-danger">
               </div>
-              <div class="col-md-6">
-                <label class="form-label">備註</label>
+              <div class="col-md-8">
+                <label class="form-label fw-bold">備註</label>
                 <input type="text" id="app-note" class="form-control">
               </div>
             </div>
-            <button type="submit" id="btn-submit-app" class="btn btn-primary mt-4 w-100" disabled>送出申請</button>
+            <button type="submit" id="btn-submit-app" class="btn btn-primary mt-4 w-100 fw-bold shadow-sm" disabled>確認送出申請</button>
           </form>
         </div>
       </div>
@@ -203,41 +218,76 @@
         <button class="btn btn-sm btn-secondary mb-3" onclick="switchView('drug-dashboard')"><i class="bi bi-arrow-left"></i> 返回 <span id="disp-back-drug-name"></span></button>
         <h3 class="mb-4 text-success fw-bold">💊 調劑剩餘量檢核 (<span id="disp-form-drug-name" class="text-danger"></span>)</h3>
         
-        <div class="card shadow-sm mb-4 border-danger">
-          <div class="card-body bg-danger bg-opacity-10">
-            <h5 class="text-danger"><i class="bi bi-camera"></i> 掃描模式就緒</h5>
-            <input type="text" id="barcode-input" class="form-control mt-2 border-danger" placeholder="請刷入藥袋條碼..." autofocus>
+        <div class="card shadow-sm mb-3">
+          <div class="card-body bg-light pb-2">
+            <!-- 新增：藥師與單位設定區 -->
+            <div class="row g-2">
+              <div class="col-md-3">
+                <label class="form-label text-muted small fw-bold mb-1">作業藥師</label>
+                <div class="input-group input-group-sm">
+                  <input type="text" id="disp-pharmacist-id" class="form-control bg-white" readonly required>
+                  <button class="btn btn-outline-secondary" type="button" onclick="enablePharmacistChange('disp')">重選</button>
+                </div>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label text-muted small fw-bold mb-1">姓名</label>
+                <input type="text" id="disp-pharmacist-name" class="form-control form-control-sm border-0" readonly required>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label text-muted small fw-bold mb-1">處理單位</label>
+                <select id="disp-unit" class="form-select form-select-sm border-primary" required></select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label text-danger small fw-bold mb-1">作業類別</label>
+                <select id="disp-type" class="form-select form-select-sm border-danger fw-bold">
+                  <option value="調劑">調劑發藥</option>
+                  <option value="退藥">退藥作業</option>
+                </select>
+              </div>
+            </div>
           </div>
         </div>
 
-        <form id="dispense-form" class="card shadow-sm p-4 border-0">
-          <div class="row g-3">
+        <div class="card shadow-sm mb-4 border-danger">
+          <div class="card-body bg-danger bg-opacity-10">
+            <h5 class="text-danger"><i class="bi bi-camera"></i> 掃描模式就緒 (刷入後即時檢核)</h5>
+            <input type="text" id="barcode-input" class="form-control mt-2 border-danger form-control-lg" placeholder="確認上方設定無誤後，請刷入藥袋條碼..." autofocus>
+          </div>
+        </div>
+
+        <form id="dispense-form" class="card shadow-sm p-4 border-0 d-none-important">
+          <h5 class="fw-bold border-bottom pb-2 mb-3">📋 檢核結果與紀錄</h5>
+          <div class="row g-3 mb-3">
             <div class="col-md-3">
-              <label class="form-label">病歷號</label>
-              <input type="text" id="disp-patient-id" class="form-control" readonly required>
+              <label class="text-muted small">病歷號</label>
+              <input type="text" id="disp-patient-id" class="form-control fw-bold border-0 bg-white text-primary" readonly required>
             </div>
             <div class="col-md-3">
-              <label class="form-label">領藥號</label>
-              <input type="text" id="disp-no" class="form-control" readonly required>
+              <label class="text-muted small">領藥號</label>
+              <input type="text" id="disp-no" class="form-control fw-bold border-0 bg-white" readonly required>
             </div>
             <div class="col-md-3">
-              <label class="form-label">作業類別</label>
-              <select id="disp-type" class="form-select">
-                <option value="調劑">調劑發藥</option>
-                <option value="退藥">退藥</option>
-              </select>
-            </div>
-            <div class="col-md-3">
-              <label class="form-label">數量</label>
-              <input type="number" id="disp-qty" class="form-control" required min="1">
+              <label class="text-muted small">解析數量</label>
+              <input type="number" id="disp-qty" class="form-control fw-bold border-0 bg-white text-danger" readonly required>
             </div>
             <div class="col-md-12">
-              <label class="form-label">備註 (退藥請填理由)</label>
-              <input type="text" id="disp-note" class="form-control">
+              <label class="form-label fw-bold">備註 (退藥請填理由)</label>
+              <input type="text" id="disp-note" class="form-control border-primary" placeholder="可選填...">
             </div>
           </div>
-          <button type="button" id="btn-check-limit" class="btn btn-info mt-4 w-100 fw-bold">🔍 送出前：檢核剩餘可用量</button>
-          <button type="submit" id="btn-submit-disp" class="btn btn-success mt-2 w-100 d-none-important">確認送出紀錄</button>
+          
+          <!-- 即時檢核紀錄顯示區 -->
+          <div id="disp-check-result" class="alert alert-info mt-2 mb-3">資料計算中...</div>
+          <div class="table-responsive mb-3">
+            <table class="table table-sm table-bordered text-center align-middle">
+              <thead class="table-light text-muted">
+                <tr><th>申請日期/類別</th><th>申請量</th><th>已發藥量</th><th>已退藥量</th></tr>
+              </thead>
+              <tbody id="disp-history-table"></tbody>
+            </table>
+          </div>
+
+          <button type="submit" id="btn-submit-disp" class="btn btn-success mt-2 w-100 fw-bold fs-5 shadow-sm">確認寫入紀錄</button>
         </form>
       </div>
 
