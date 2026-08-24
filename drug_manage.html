@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>藥品主檔維護</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+  <div class="container mt-4">
+    <div class="d-flex justify-content-between mb-3">
+      <h3>⚙️ 藥品主檔維護</h3>
+      <a href="dashboard.html" class="btn btn-secondary">返回首頁</a>
+    </div>
+
+    <div class="row">
+      <!-- 左側：新增/編輯表單 -->
+      <div class="col-md-4 mb-4">
+        <div class="card shadow-sm p-3">
+          <h5>新增 / 編輯藥品</h5>
+          <hr>
+          <form id="drug-form">
+            <div class="mb-2">
+              <label class="form-label">藥品代碼 (唯一值)</label>
+              <input type="text" id="drug-code" class="form-control" required placeholder="如: ire*d1">
+            </div>
+            <div class="mb-2">
+              <label class="form-label">藥品名稱</label>
+              <input type="text" id="drug-name" class="form-control" required>
+            </div>
+            <div class="mb-2">
+              <label class="form-label">管制天數 (防呆區間)</label>
+              <input type="number" id="drug-control-days" class="form-control" value="14" required>
+            </div>
+            <div class="row mb-2">
+              <div class="col-6">
+                <label class="form-label">預設申請天數</label>
+                <input type="number" id="drug-default-days" class="form-control" value="3" required>
+              </div>
+              <div class="col-6">
+                <label class="form-label">預設申請量</label>
+                <input type="number" id="drug-default-qty" class="form-control" value="3" required>
+              </div>
+            </div>
+            <div class="row mb-3">
+              <div class="col-6">
+                <label class="form-label">展延天數上限</label>
+                <input type="number" id="drug-max-ext-days" class="form-control" value="5" required>
+              </div>
+              <div class="col-6">
+                <label class="form-label">展延數量上限</label>
+                <input type="number" id="drug-max-ext-qty" class="form-control" value="2" required>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">啟用狀態</label>
+              <select id="drug-status" class="form-select">
+                <option value="Y">Y - 啟用</option>
+                <option value="N">N - 停用</option>
+              </select>
+            </div>
+            <button type="submit" id="btn-save-drug" class="btn btn-primary w-100">儲存藥品設定</button>
+            <button type="button" id="btn-clear" class="btn btn-outline-secondary w-100 mt-2">清除表單</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- 右側：現有藥品清單 -->
+      <div class="col-md-8">
+        <div class="card shadow-sm p-3">
+          <h5>現有藥品清單</h5>
+          <hr>
+          <div class="table-responsive">
+            <table class="table table-hover align-middle">
+              <thead class="table-light">
+                <tr>
+                  <th>代碼</th>
+                  <th>名稱</th>
+                  <th>管制</th>
+                  <th>初次(天/量)</th>
+                  <th>展延上限(天/量)</th>
+                  <th>狀態</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="drug-table-body">
+                <tr><td colspan="7" class="text-center">載入中...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/drug_manage.js"></script>
+</body>
+</html>
