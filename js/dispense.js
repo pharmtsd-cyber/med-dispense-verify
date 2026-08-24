@@ -1,15 +1,17 @@
 // js/dispense.js
 function openDispenseForm() {
   if(!State.currentSelectedDrugCode) return;
-  const drug = State.activeDrugs.find(d => d['藥品代碼'] === State.currentSelectedDrugCode);
+  const drug = State.activeDrugs.find(d => String(d['藥品代碼']).toUpperCase() === State.currentSelectedDrugCode);
   const user = JSON.parse(sessionStorage.getItem("currentUser"));
   
   document.getElementById("disp-form-drug-name").innerText = `${drug['藥品名稱']} (${drug['藥品代碼']})`;
   document.getElementById("disp-back-drug-name").innerText = drug['藥品名稱'];
   document.getElementById("dispense-form").classList.add("d-none-important"); 
   
+  // 帶入預設登入藥師與單位
   document.getElementById("disp-pharmacist-id").value = user.id;
   document.getElementById("disp-pharmacist-name").value = user.name;
+  document.getElementById("disp-unit").value = user.unit || "";
   
   switchView('dispense');
   document.getElementById("barcode-input").value = "";
@@ -26,7 +28,8 @@ document.addEventListener("DOMContentLoaded", () => {
   barcodeInput.addEventListener("keypress", async (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      const str = barcodeInput.value.trim();
+      // 條碼強制轉大寫解析
+      const str = barcodeInput.value.trim().toUpperCase();
       if(!str) return;
       
       if(!document.getElementById("disp-unit").value || !document.getElementById("disp-pharmacist-id").value) {
@@ -36,8 +39,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const parts = str.split(';');
       if (parts.length >= 4) {
-        if(parts[1] !== State.currentSelectedDrugCode) {
-           alert(`⚠️ 條碼解析錯誤：藥袋藥品代碼 (${parts[1]}) 與系統當前頁面 (${State.currentSelectedDrugCode}) 不符！`);
+        // 比較時全大寫處理
+        const scannedDrugCode = parts[1];
+        if(scannedDrugCode !== State.currentSelectedDrugCode) {
+           alert(`⚠️ 條碼解析錯誤：藥袋藥品代碼 (${scannedDrugCode}) 與系統當前頁面 (${State.currentSelectedDrugCode}) 不符！`);
            barcodeInput.value = "";
            return;
         }
@@ -64,14 +69,14 @@ document.addEventListener("DOMContentLoaded", () => {
         let historyHtml = "";
         
         apps.forEach(app => {
-          if(app['病歷號'] === pid && app['藥品代碼'] === State.currentSelectedDrugCode && app['作廢'] !== 'Y') {
+          if(String(app['病歷號']).toUpperCase() === pid && String(app['藥品代碼']).toUpperCase() === State.currentSelectedDrugCode && app['作廢'] !== 'Y') {
             totalAllowed += parseInt(app['申請數量'] || 0);
             historyHtml += `<tr><td>${app['申請日期']} <span class="badge bg-primary">${app['申請類別']}</span></td><td class="text-primary fw-bold">+${app['申請數量']}</td><td>-</td><td>-</td></tr>`;
           }
         });
 
         logs.forEach(log => {
-          if(log['病歷號'] === pid && log['藥品代碼'] === State.currentSelectedDrugCode && log['作廢'] !== 'Y') {
+          if(String(log['病歷號']).toUpperCase() === pid && String(log['藥品代碼']).toUpperCase() === State.currentSelectedDrugCode && log['作廢'] !== 'Y') {
             totalDispensed += parseInt(log['調劑數量'] || 0);
             totalReturned += parseInt(log['退藥數量'] || 0);
             const isDisp = parseInt(log['調劑數量']) > 0;
@@ -123,7 +128,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const qty = parseInt(document.getElementById("disp-qty").value);
 
     const dataObj = {
-      "病歷號": document.getElementById("disp-patient-id").value,
+      "病歷號": document.getElementById("disp-patient-id").value, // 已經大寫了
       "藥品代碼": State.currentSelectedDrugCode,
       "選擇調劑或退藥": type,
       "調劑數量": type === "調劑" ? qty : 0,
