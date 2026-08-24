@@ -25,12 +25,18 @@
     <div class="card shadow-sm border-0">
       <div class="card-body p-4">
         <h4 class="text-center text-primary mb-4"><i class="bi bi-shield-lock"></i> 藥品調劑檢核系統</h4>
-        <div id="loading-msg" class="alert alert-info text-center">系統載入中...</div>
+        <div id="loading-msg" class="alert alert-info text-center">系統資源載入中，請稍候...</div>
         
         <form id="login-form" class="d-none-important">
           <div class="mb-3">
             <label class="form-label fw-bold">請輸入員工編號：</label>
-            <input type="text" id="employee-input" class="form-control form-control-lg" required placeholder="例如: 1038391" autofocus>
+            <input type="text" id="employee-input" class="form-control form-control-lg text-uppercase" required placeholder="例如: 1038391" autofocus>
+          </div>
+          <div class="mb-4">
+            <label class="form-label fw-bold">請選擇登入單位：</label>
+            <select id="login-unit-select" class="form-select form-select-lg" required>
+              <option value="" selected disabled>-- 請選擇 --</option>
+            </select>
           </div>
           <button type="submit" class="btn btn-primary btn-lg w-100">登入系統</button>
         </form>
@@ -149,7 +155,7 @@
               <div class="col-md-3">
                 <label class="form-label text-muted small fw-bold">填寫藥師編號</label>
                 <div class="input-group">
-                  <input type="text" id="app-pharmacist-id" class="form-control bg-light" readonly required>
+                  <input type="text" id="app-pharmacist-id" text-uppercase class="form-control bg-light" readonly required>
                   <button class="btn btn-outline-secondary" type="button" onclick="enablePharmacistChange('app')">重選</button>
                 </div>
               </div>
@@ -166,7 +172,7 @@
             <div class="row g-3">
               <div class="col-md-4">
                 <label class="form-label fw-bold">病歷號</label>
-                <input type="text" id="app-patient-id" class="form-control" required autofocus placeholder="輸入後離開欄位自動檢核">
+                <input type="text" id="app-patient-id" text-uppercase class="form-control" required autofocus placeholder="輸入後離開欄位自動檢核">
               </div>
               <div class="col-md-4">
                 <label class="form-label fw-bold">申請類別</label>
@@ -213,7 +219,7 @@
               <div class="col-md-3">
                 <label class="form-label text-muted small fw-bold mb-1">作業藥師</label>
                 <div class="input-group input-group-sm">
-                  <input type="text" id="disp-pharmacist-id" class="form-control bg-white" readonly required>
+                  <input type="text" id="disp-pharmacist-id" text-uppercase class="form-control bg-white" readonly required>
                   <button class="btn btn-outline-secondary" type="button" onclick="enablePharmacistChange('disp')">重選</button>
                 </div>
               </div>
@@ -248,7 +254,7 @@
           <div class="row g-3 mb-3">
             <div class="col-md-3">
               <label class="text-muted small">病歷號</label>
-              <input type="text" id="disp-patient-id" class="form-control fw-bold border-0 bg-white text-primary" readonly required>
+              <input type="text" id="disp-patient-id" text-uppercase class="form-control fw-bold border-0 bg-white text-primary" readonly required>
             </div>
             <div class="col-md-3">
               <label class="text-muted small">領藥號</label>
