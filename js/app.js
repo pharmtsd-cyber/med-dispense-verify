@@ -234,3 +234,124 @@ function openApplicationForm() {
 function openDispenseForm() {
   alert(`開啟調劑剩餘量檢核作業 (鎖定藥品代碼: ${currentSelectedDrugCode}) - 開發中`);
 }
+
+// ==========================================
+// 藥品主檔維護 (整合邏輯)
+// ==========================================
+async function renderDrugManageTable() {
+  const tableBody = document.getElementById("drug-table-body");
+  tableBody.innerHTML = '<tr><td colspan="7" class="text-center">資料載入中...</td></tr>';
+  
+  const allDrugs = await fetchData('getAllDrugs');
+  tableBody.innerHTML = '';
+  
+  if (allDrugs.length === 0) {
+    tableBody.innerHTML = '<tr><td colspan="7" class="text-center">目前無藥品資料。</td></tr>';
+    return;
+  }
+
+  allDrugs.forEach(drug => {
+    if(!drug['藥品代碼']) return; 
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="fw-bold">${drug['藥品代碼']}</td>
+      <td>${drug['藥品名稱']}</td>
+      <td>${drug['管制天數']} 天</td>
+      <td>${drug['預設申請天數']} / ${drug['預設申請數量']}</td>
+      <td>${drug['展延天數上限']} / ${drug['展延數量上限']}</td>
+      <td><span class="badge ${drug['啟用狀態'].toUpperCase() === 'Y' ? 'bg-success' : 'bg-danger'}">${drug['啟用狀態'].toUpperCase() === 'Y' ? '啟用' : '停用'}</span></td>
+      <td><button class="btn btn-sm btn-outline-primary btn-edit-drug" data-code="${drug['藥品代碼']}">編輯</button></td>
+    `;
+    tableBody.appendChild(tr);
+  });
+
+  document.querySelectorAll(".btn-edit-drug").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      const code = e.target.getAttribute("data-code");
+      const drug = allDrugs.find(d => d['藥品代碼'] === code);
+      if (drug) {
+        document.getElementById("drug-code").value = drug['藥品代碼'];
+        document.getElementById("drug-name").value = drug['藥品名稱'];
+        document.getElementById("drug-control-days").value = drug['管制天數'];
+        document.getElementById("drug-default-days").value = drug['預設申請天數'];
+        document.getElementById("drug-default-qty").value = drug['預設申請數量'];
+        document.getElementById("drug-max-ext-days").value = drug['展延天數上限'];
+        document.getElementById("drug-max-ext-qty").value = drug['展延數量上限'];
+        document.getElementById("drug-status").value = drug['啟用狀態'].toUpperCase() || 'Y';
+        document.getElementById("drug-code").setAttribute("readonly", true);
+      }
+    });
+  });
+}
+
+// 綁定藥品維護表單事件
+document.getElementById("drug-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btnSave = document.getElementById("btn-save-drug");
+  btnSave.disabled = true;
+  btnSave.innerText = "儲存中...";
+
+  const dataObj = {
+    "藥品代碼": document.getElementById("drug-code").value.trim(),
+    "藥品名稱": document.getElementById("drug-name").value.trim(),
+    "管制天數": document.getElementById("drug-control-days").value,
+    "預設申請天數": document.getElementById("drug-default-days").value,
+    "預設申請數量": document.getElementById("drug-default-qty").value,
+    "展延天數上限": document.getElementById("drug-max-ext-days").value,
+    "展延數量上限": document.getElementById("drug-max-ext-qty").value,
+    "啟用狀態": document.getElementById("drug-status").value
+  };
+
+  const res = await postData("saveDrug", dataObj);
+  if(res.status === 'success') {
+    alert("藥品設定已儲存！");
+    document.getElementById("btn-clear-drug").click();
+    await renderDrugManageTable();
+  } else {
+    alert("錯誤：" + res.message);
+  }
+  btnSave.disabled = false;
+  btnSave.innerText = "儲存藥品設定";
+});
+
+document.getElementById("btn-clear-drug").addEventListener("click", () => {
+  document.getElementById("drug-form").reset();
+  document.getElementById("drug-code").removeAttribute("readonly");
+});
+
+// 如果點擊側邊欄的「藥品主檔維護」，自動載入表格
+document.querySelector('a[onclick="switchView(\'drug-manage\', this)"]').addEventListener('click', renderDrugManageTable);
+
+// ==========================================
+// 申請單與調劑單的開啟邏輯 (代入當前藥品)
+// ==========================================
+function openApplicationForm() {
+  if(!currentSelectedDrugCode) return;
+  const drug = activeDrugs.find(d => d['藥品代碼'] === currentSelectedDrugCode);
+  
+  // 顯示藥品名稱在標題
+  document.getElementById("app-form-drug-name").innerText = `${drug['藥品名稱']} (${drug['藥品代碼']})`;
+  document.getElementById("app-back-drug-name").innerText = drug['藥品名稱'];
+  
+  // 清空表單，準備輸入病歷號
+  document.getElementById("app-form").reset();
+  document.getElementById("app-type").disabled = true;
+  document.getElementById("app-type").innerHTML = '<option value="">-- 請先輸入病歷號 --</option>';
+  
+  switchView('application');
+  document.getElementById("app-patient-id").focus();
+}
+
+function openDispenseForm() {
+  if(!currentSelectedDrugCode) return;
+  const drug = activeDrugs.find(d => d['藥品代碼'] === currentSelectedDrugCode);
+  
+  document.getElementById("disp-form-drug-name").innerText = `${drug['藥品名稱']} (${drug['藥品代碼']})`;
+  document.getElementById("disp-back-drug-name").innerText = drug['藥品名稱'];
+  
+  document.getElementById("dispense-form").reset();
+  document.getElementById("btn-submit-disp").classList.add("d-none-important");
+  
+  switchView('dispense');
+  document.getElementById("barcode-input").focus();
+}
