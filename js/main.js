@@ -81,9 +81,11 @@ function logout() {
 async function initApp(user) {
   document.getElementById("login-container").classList.add("d-none-important");
   document.getElementById("app-container").classList.remove("d-none-important");
-  // 顯示包含單位資訊
-  document.getElementById("user-info").innerText = `${user.name} (${user.unit})`;
+  // 顯示包含單位資訊 (加上防呆，避免舊資料沒有 unit)
+  document.getElementById("user-info").innerText = `${user.name} (${user.unit || '無單位'})`;
 
+  // 👉 就是少了這行！必須在系統初始化時也把員工名單抓下來，重選藥師才找得到人
+  State.employeeData = await fetchData('getEmployeeData');
   State.activeDrugs = await fetchData('getActiveDrugs');
   State.unitData = await fetchData('getUnits');
   
