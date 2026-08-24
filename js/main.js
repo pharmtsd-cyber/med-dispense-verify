@@ -78,16 +78,21 @@ function logout() {
 }
 
 // ================= 系統初始化 =================
+// js/main.js (修改 initApp 區塊與新增 forceSyncData)
+
 async function initApp(user) {
   document.getElementById("login-container").classList.add("d-none-important");
   document.getElementById("app-container").classList.remove("d-none-important");
-  // 顯示包含單位資訊 (加上防呆，避免舊資料沒有 unit)
   document.getElementById("user-info").innerText = `${user.name} (${user.unit || '無單位'})`;
 
-  // 👉 就是少了這行！必須在系統初始化時也把員工名單抓下來，重選藥師才找得到人
+  // 系統啟動時，將所有資料庫快取到前端
+  document.getElementById("overview-content").innerHTML = '<div class="alert alert-info">正在載入系統巨量資料，請稍候...</div>';
+  
   State.employeeData = await fetchData('getEmployeeData');
   State.activeDrugs = await fetchData('getActiveDrugs');
   State.unitData = await fetchData('getUnits');
+  State.applications = await fetchData('getApplications');
+  State.dispenseLogs = await fetchData('getDispenseLogs');
   
   const menuContainer = document.getElementById("dynamic-drug-menu");
   const overviewFilter = document.getElementById("overview-drug-filter");
@@ -110,6 +115,21 @@ async function initApp(user) {
   
   populateUnitSelects();
   if (typeof renderOverview === "function") renderOverview();
+}
+
+async function forceSyncData() {
+  if(!checkNetwork()) return;
+  alert("開始與伺服器同步資料，請稍候...");
+  State.applications = await fetchData('getApplications');
+  State.dispenseLogs = await fetchData('getDispenseLogs');
+  
+  if (State.currentSelectedDrugCode) {
+    refreshSingleDrugDashboard();
+    if(typeof renderActivePatientsTable === "function") renderActivePatientsTable();
+  } else {
+    renderOverview();
+  }
+  alert("資料同步完成！");
 }
 
 function populateUnitSelects() {
