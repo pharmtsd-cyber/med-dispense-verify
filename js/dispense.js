@@ -17,31 +17,29 @@ function openDispenseForm() {
   document.getElementById("barcode-input").focus();
   document.getElementById("disp-check-result").classList.add("d-none-important");
   
-  // 預設載入近兩天紀錄
   renderDispenseHistory(); 
 }
 
-// 渲染調劑歷史/病歷號關聯清單
+// 渲染調劑歷史 (自動定位PID)
 function renderDispenseHistory(forcePid = null) {
   const tbody = document.getElementById("disp-history-table");
   if(!tbody) return;
   
   let pidFilter = forcePid || document.getElementById("disp-hist-pid").value.trim().toUpperCase();
-  if(forcePid) document.getElementById("disp-hist-pid").value = pidFilter; // 同步UI
+  if(forcePid) document.getElementById("disp-hist-pid").value = pidFilter;
   
-  const startStr = document.getElementById("disp-hist-start").value;
-  const endStr = document.getElementById("disp-hist-end").value;
+  const startStr = document.getElementById("disp-hist-start").value.replace(/-/g, '/');
+  const endStr = document.getElementById("disp-hist-end").value.replace(/-/g, '/');
   
-  // 依照時間排序 (最新的在最前)
-  let sortedLogs = [...State.dispenseLogs].reverse();
+  let sortedLogs = [...State.dispenseLogs].sort((a,b) => new Date(b['調劑日期']+' '+(b['調劑時間']||'00:00:00')) - new Date(a['調劑日期']+' '+(a['調劑時間']||'00:00:00')));
   
   let html = "";
-  sortedLogs.forEach((log, index) => {
+  sortedLogs.forEach((log) => {
     if(String(log['藥品代碼']).toUpperCase() === State.currentSelectedDrugCode && log['作廢'] !== 'Y') {
       const logPid = String(log['病歷號']).toUpperCase();
       if(pidFilter && !logPid.includes(pidFilter)) return;
       
-      const logDateStr = formatAsDate(log['調劑日期']).replace(/\//g, '-');
+      const logDateStr = formatAsDate(log['調劑日期']);
       if(startStr && logDateStr < startStr) return;
       if(endStr && logDateStr > endStr) return;
 
@@ -50,63 +48,76 @@ function renderDispenseHistory(forcePid = null) {
       const typeHtml = isDisp ? `<span class="badge bg-success">調劑</span>` : `<span class="badge bg-danger">退藥</span>`;
       
       html += `<tr>
-        <td>${log['調劑日期']} ${log['調劑時間']}</td>
+        <td>${logDateStr} ${log['調劑時間'] || ''}</td>
         <td class="fw-bold text-primary">${logPid}</td>
         <td>${typeHtml}</td>
         <td class="fw-bold">${qty}</td>
-        <td><button class="btn btn-sm btn-outline-info" onclick="viewAppDetail('${logPid}')">📄 檢視依據</button></td>
+        <td><button type="button" class="btn btn-sm btn-outline-info" onclick="viewAppDetail('${logPid}')">📄 檢視依據</button></td>
       </tr>`;
     }
   });
   tbody.innerHTML = html || '<tr><td colspan="5" class="text-muted">查無符合紀錄</td></tr>';
 }
 
-// 顯示檢核依據 (抓出該 PID 管制期內最新的申請單)
-function viewAppDetail(pid) {
-  const drugCode = State.currentSelectedDrugCode;
-  const drug = State.activeDrugs.find(d => String(d['藥品代碼']).toUpperCase() === drugCode);
-  const controlDays = parseInt(drug['管制天數'] || 14);
-  const cutoffDate = new Date();
-  cutoffDate.setDate(cutoffDate.getDate() - controlDays);
-  
-  let latestApp = null;
-  
-  State.applications.forEach(app => {
-    if(String(app['病歷號']).toUpperCase() === pid && String(app['藥品代碼']).toUpperCase() === drugCode && app['作廢'] !== 'Y') {
-      const appDate = new Date(app['申請日期']);
-      if(appDate >= cutoffDate) {
-        if(!latestApp || appDate > new Date(latestApp['申請日期'])) {
-          latestApp = app;
+// 👉 核心邏輯：計算特定病患的總申請與調劑額度
+function calculatePatientQuota(pid, drugCode) {
+    let cycleMap = {}; // 用「啟用日期」區分療程週期，取最大值
+    let latestApp = null; // 用來彈窗顯示最新單據
+    
+    State.applications.forEach(a => {
+        if(String(a['病歷號']).toUpperCase() === pid && String(a['藥品代碼']).toUpperCase() === drugCode && a['作廢'] !== 'Y') {
+            const sDate = formatAsDate(a['啟用日期'] || a['申請日期']);
+            const qty = parseInt(a['申請數量'] || 0);
+            
+            // 展延會覆蓋原本初次的數量 (取大值)
+            if(!cycleMap[sDate] || qty > cycleMap[sDate]) cycleMap[sDate] = qty;
+            
+            if(!latestApp || new Date(formatAsDate(a['申請日期'])+' '+(a['收單時間']||'00:00:00')) > new Date(formatAsDate(latestApp['申請日期'])+' '+(latestApp['收單時間']||'00:00:00'))) {
+                latestApp = a;
+            }
         }
-      }
-    }
-  });
+    });
 
+    let totalAllowed = 0;
+    Object.values(cycleMap).forEach(q => totalAllowed += q);
+
+    let totalDispensed = 0, totalReturned = 0;
+    State.dispenseLogs.forEach(log => {
+      if(String(log['病歷號']).toUpperCase() === pid && String(log['藥品代碼']).toUpperCase() === drugCode && log['作廢'] !== 'Y') {
+        totalDispensed += parseInt(log['調劑數量'] || 0);
+        totalReturned += parseInt(log['退藥數量'] || 0);
+      }
+    });
+    
+    return { totalAllowed, totalDispensed, totalReturned, currentUsed: totalDispensed - totalReturned, latestApp };
+}
+
+// 彈窗顯示檢核依據
+window.viewAppDetail = function(pid) {
+  const { latestApp } = calculatePatientQuota(pid, State.currentSelectedDrugCode);
   const contentBox = document.getElementById("appDetailContent");
   if(latestApp) {
     contentBox.innerHTML = `
       <ul class="list-group">
-        <li class="list-group-item"><b>申請單號 / 時間：</b>${latestApp['申請單號'] || '-'} / ${latestApp['申請日期']}</li>
-        <li class="list-group-item"><b>病歷號：</b>${latestApp['病歷號']}</li>
-        <li class="list-group-item"><b>申請類別：</b><span class="badge bg-primary">${latestApp['申請類別']}</span></li>
+        <li class="list-group-item"><b>依據單號：</b><span class="text-danger fw-bold">${latestApp['申請單號'] || '剛成立單據(系統拋轉中)'}</span></li>
+        <li class="list-group-item"><b>收單時間：</b>${latestApp['申請日期']} ${latestApp['收單時間']||''}</li>
+        <li class="list-group-item"><b>病歷號：</b><span class="text-primary fw-bold">${latestApp['病歷號']}</span></li>
+        <li class="list-group-item"><b>單據類別：</b><span class="badge bg-primary fs-6">${latestApp['申請類別']}</span></li>
         <li class="list-group-item"><b>啟用日期：</b>${latestApp['啟用日期'] || '-'}</li>
-        <li class="list-group-item"><b>天數 / 數量：</b>${latestApp['申請天數']} 天 / ${latestApp['申請數量']} 支</li>
+        <li class="list-group-item"><b>核准天數/數量：</b>${latestApp['申請天數']} 天 / <span class="fw-bold text-success">${latestApp['申請數量']} 支</span></li>
         <li class="list-group-item"><b>處理單位：</b>${latestApp['處理單位']}</li>
         <li class="list-group-item"><b>開單藥師：</b>${latestApp['藥師姓名']}</li>
       </ul>
     `;
   } else {
-    contentBox.innerHTML = '<div class="alert alert-warning">查無管制期內之申請紀錄，或已過期。</div>';
+    contentBox.innerHTML = '<div class="alert alert-warning">查無相關申請單依據。</div>';
   }
-  
-  const modal = new bootstrap.Modal(document.getElementById('appDetailModal'));
-  modal.show();
-}
+  new bootstrap.Modal(document.getElementById('appDetailModal')).show();
+};
 
-// 處理實際寫入邏輯
+// 寫入資料庫
 async function processDispense(pid, qty, type, no, note) {
     if(!checkNetwork()) return;
-    
     const now = new Date();
     const dataObj = {
       "病歷號": pid,
@@ -127,27 +138,13 @@ async function processDispense(pid, qty, type, no, note) {
     const res = await postData("submitDispense", dataObj);
     if(res.status === 'success') {
       State.dispenseLogs.push(dataObj);
-      renderDispenseHistory(pid); // 更新畫面並鎖定此PID
+      renderDispenseHistory(pid); 
     } else {
       alert("寫入失敗：" + res.message);
     }
 }
 
-// 手動輸入模式
-function manualDispenseModal() {
-  const pid = prompt("請輸入病歷號：");
-  if(!pid) return;
-  const qtyStr = prompt("請輸入數量 (數字)：");
-  if(!qtyStr || isNaN(qtyStr)) return;
-  const qty = parseInt(qtyStr);
-  const type = document.getElementById("disp-type").value;
-  const note = prompt("請輸入備註 (退藥必填)：");
-  
-  // 觸發檢核
-  runDispenseCheck(pid.trim().toUpperCase(), qty, type, null, note);
-}
-
-// 核心檢核邏輯
+// 核心檢核邏輯 (即時通過就寫入)
 async function runDispenseCheck(pid, qty, type, no, note) {
     if(!document.getElementById("disp-unit").value || !document.getElementById("disp-pharmacist-id").value) {
        alert("請先確認「處理單位」與「作業藥師」已設定！"); return;
@@ -155,51 +152,45 @@ async function runDispenseCheck(pid, qty, type, no, note) {
     
     const resultBox = document.getElementById("disp-check-result");
     resultBox.classList.remove("d-none-important");
-    resultBox.className = "alert alert-warning fw-bold";
-    resultBox.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>檢核中...';
-
-    // 取得病患額度
-    let totalAllowed = 0, totalDispensed = 0, totalReturned = 0;
     
-    State.applications.forEach(app => {
-      if(String(app['病歷號']).toUpperCase() === pid && String(app['藥品代碼']).toUpperCase() === State.currentSelectedDrugCode && app['作廢'] !== 'Y') {
-        totalAllowed += parseInt(app['申請數量'] || 0);
-      }
-    });
-
-    State.dispenseLogs.forEach(log => {
-      if(String(log['病歷號']).toUpperCase() === pid && String(log['藥品代碼']).toUpperCase() === State.currentSelectedDrugCode && log['作廢'] !== 'Y') {
-        totalDispensed += parseInt(log['調劑數量'] || 0);
-        totalReturned += parseInt(log['退藥數量'] || 0);
-      }
-    });
-    
-    const currentUsed = totalDispensed - totalReturned;
+    const { totalAllowed, currentUsed } = calculatePatientQuota(pid, State.currentSelectedDrugCode);
     const remaining = totalAllowed - currentUsed;
     
     if (type === "調劑") {
       if (totalAllowed === 0 || qty > remaining) {
-        resultBox.className = "alert alert-danger fw-bold";
-        resultBox.innerText = `⛔ 阻擋：${totalAllowed === 0 ? '尚未申請此藥品' : '超量調劑 (剩餘 ' + remaining + ')'}`;
-        renderDispenseHistory(pid); // 擋下也顯示歷史
+        resultBox.className = "alert alert-danger fw-bold fs-5 shadow-sm";
+        resultBox.innerHTML = `⛔ 阻擋：${totalAllowed === 0 ? '尚未申請此藥品' : '超量調劑 (剩餘 ' + remaining + ' 支，欲發 ' + qty + ' 支)'}`;
+        renderDispenseHistory(pid); // 擋下也要顯示清單
         return;
       }
-      resultBox.className = "alert alert-success fw-bold";
-      resultBox.innerText = `✅ 檢核通過並自動送出！剩餘額度：${remaining - qty} 支`;
+      resultBox.className = "alert alert-success fw-bold fs-5 shadow-sm";
+      resultBox.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> ✅ 額度足夠！剩餘 ${remaining} ➔ 發出後剩餘 ${remaining - qty}，正在自動寫入紀錄...`;
     } else { 
       if (qty > currentUsed) {
-        resultBox.className = "alert alert-danger fw-bold";
-        resultBox.innerText = `⛔ 阻擋：退藥數量 (${qty}) 大於總已領藥量 (${currentUsed})！`;
+        resultBox.className = "alert alert-danger fw-bold fs-5 shadow-sm";
+        resultBox.innerHTML = `⛔ 阻擋：退藥數量 (${qty}) 大於總已領藥量 (${currentUsed})！`;
         renderDispenseHistory(pid);
         return;
       }
-      resultBox.className = "alert alert-success fw-bold";
-      resultBox.innerText = `✅ 退藥檢核通過並自動送出！退入將恢復 ${qty} 支額度。`;
+      resultBox.className = "alert alert-success fw-bold fs-5 shadow-sm";
+      resultBox.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> ✅ 退藥檢核通過！正在自動寫入紀錄...`;
     }
     
-    // 檢核通過，直接呼叫 API 寫入
+    // 👉 通過直接寫入，免點確認
     await processDispense(pid, qty, type, no, note);
+    resultBox.innerHTML = resultBox.innerHTML.replace('<span class="spinner-border spinner-border-sm me-2"></span>', '💾');
 }
+
+// 手動輸入模式
+window.manualDispenseModal = function() {
+  const pid = prompt("請輸入病歷號：");
+  if(!pid) return;
+  const qtyStr = prompt("請輸入數量 (數字)：");
+  if(!qtyStr || isNaN(qtyStr)) return;
+  const type = document.getElementById("disp-type").value;
+  const note = prompt("請輸入備註 (退藥必填)：");
+  runDispenseCheck(pid.trim().toUpperCase(), parseInt(qtyStr), type, null, note);
+};
 
 document.addEventListener("DOMContentLoaded", () => {
   const barcodeInput = document.getElementById("barcode-input");
@@ -218,14 +209,12 @@ document.addEventListener("DOMContentLoaded", () => {
            alert(`⚠️ 條碼解析錯誤：藥袋代碼 (${scannedDrugCode}) 與當前頁面 (${State.currentSelectedDrugCode}) 不符！`);
            barcodeInput.value = ""; return;
         }
-        
         const pid = parts[0];
         const qty = parseInt(parts[3]);
         const type = document.getElementById("disp-type").value;
         const no = parts[2];
         barcodeInput.value = ""; 
         
-        // 執行即時檢核與寫入
         runDispenseCheck(pid, qty, type, no, "");
       } else {
         alert("條碼格式不符！");
