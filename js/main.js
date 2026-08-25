@@ -143,15 +143,31 @@ async function forceSyncData() {
 }
 
 function populateUnitSelects() {
-  const appUnit = document.getElementById("app-unit");
-  const dispUnit = document.getElementById("disp-unit");
-  if(appUnit && dispUnit && State.unitData.length > 0) {
-    let unitOptions = '<option value="">--請選擇--</option>';
-    State.unitData.forEach(u => {
-      if(u['單位名稱']) unitOptions += `<option value="${u['單位名稱']}">${u['單位名稱']}</option>`;
+  const appUnitGrp = document.getElementById("app-unit-group");
+  const dispUnitGrp = document.getElementById("disp-unit-group");
+  
+  if(State.unitData.length > 0) {
+    let html = '';
+    State.unitData.forEach((u, idx) => {
+      if(u['單位名稱']) {
+        html += `
+          <input type="radio" class="btn-check" name="app-unit-radio" id="app-unit-${idx}" value="${u['單位名稱']}" autocomplete="off">
+          <label class="btn btn-outline-primary" for="app-unit-${idx}">${u['單位名稱']}</label>
+        `;
+      }
     });
-    appUnit.innerHTML = unitOptions;
-    dispUnit.innerHTML = unitOptions;
+    if(appUnitGrp) appUnitGrp.innerHTML = html;
+    
+    let dispHtml = '';
+    State.unitData.forEach((u, idx) => {
+      if(u['單位名稱']) {
+        dispHtml += `
+          <input type="radio" class="btn-check" name="disp-unit-radio" id="disp-unit-${idx}" value="${u['單位名稱']}" autocomplete="off">
+          <label class="btn btn-outline-primary" for="disp-unit-${idx}">${u['單位名稱']}</label>
+        `;
+      }
+    });
+    if(dispUnitGrp) dispUnitGrp.innerHTML = dispHtml;
   }
 }
 
