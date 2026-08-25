@@ -1,5 +1,8 @@
 // js/dispense.js
 
+// 👉 全域鎖：防止連刷與重複觸發
+let isProcessingDispense = false; 
+
 function openDispenseForm() {
   if(!State.currentSelectedDrugCode) return;
   const drug = State.activeDrugs.find(d => String(d['藥品代碼']).toUpperCase() === State.currentSelectedDrugCode);
@@ -20,7 +23,6 @@ function openDispenseForm() {
   renderDispenseHistory(); 
 }
 
-// 渲染調劑歷史 (自動定位PID)
 function renderDispenseHistory(forcePid = null) {
   const tbody = document.getElementById("disp-history-table");
   if(!tbody) return;
@@ -59,17 +61,15 @@ function renderDispenseHistory(forcePid = null) {
   tbody.innerHTML = html || '<tr><td colspan="5" class="text-muted">查無符合紀錄</td></tr>';
 }
 
-// 👉 核心邏輯：計算特定病患的總申請與調劑額度
 function calculatePatientQuota(pid, drugCode) {
-    let cycleMap = {}; // 用「啟用日期」區分療程週期，取最大值
-    let latestApp = null; // 用來彈窗顯示最新單據
+    let cycleMap = {}; 
+    let latestApp = null; 
     
     State.applications.forEach(a => {
         if(String(a['病歷號']).toUpperCase() === pid && String(a['藥品代碼']).toUpperCase() === drugCode && a['作廢'] !== 'Y') {
             const sDate = formatAsDate(a['啟用日期'] || a['申請日期']);
             const qty = parseInt(a['申請數量'] || 0);
             
-            // 展延會覆蓋原本初次的數量 (取大值)
             if(!cycleMap[sDate] || qty > cycleMap[sDate]) cycleMap[sDate] = qty;
             
             if(!latestApp || new Date(formatAsDate(a['申請日期'])+' '+(a['收單時間']||'00:00:00')) > new Date(formatAsDate(latestApp['申請日期'])+' '+(latestApp['收單時間']||'00:00:00'))) {
@@ -92,7 +92,6 @@ function calculatePatientQuota(pid, drugCode) {
     return { totalAllowed, totalDispensed, totalReturned, currentUsed: totalDispensed - totalReturned, latestApp };
 }
 
-// 彈窗顯示檢核依據
 window.viewAppDetail = function(pid) {
   const { latestApp } = calculatePatientQuota(pid, State.currentSelectedDrugCode);
   const contentBox = document.getElementById("appDetailContent");
@@ -115,9 +114,8 @@ window.viewAppDetail = function(pid) {
   new bootstrap.Modal(document.getElementById('appDetailModal')).show();
 };
 
-// 寫入資料庫
 async function processDispense(pid, qty, type, no, note) {
-    if(!checkNetwork()) return;
+    if(!checkNetwork()) return false;
     const now = new Date();
     const dataObj = {
       "病歷號": pid,
@@ -139,15 +137,17 @@ async function processDispense(pid, qty, type, no, note) {
     if(res.status === 'success') {
       State.dispenseLogs.push(dataObj);
       renderDispenseHistory(pid); 
+      return true;
     } else {
       alert("寫入失敗：" + res.message);
+      return false;
     }
 }
 
-// 核心檢核邏輯 (即時通過就寫入)
+// 核心檢核邏輯改為 async 並回傳 boolean
 async function runDispenseCheck(pid, qty, type, no, note) {
     if(!document.getElementById("disp-unit").value || !document.getElementById("disp-pharmacist-id").value) {
-       alert("請先確認「處理單位」與「作業藥師」已設定！"); return;
+       alert("請先確認「處理單位」與「作業藥師」已設定！"); return false;
     }
     
     const resultBox = document.getElementById("disp-check-result");
@@ -160,8 +160,8 @@ async function runDispenseCheck(pid, qty, type, no, note) {
       if (totalAllowed === 0 || qty > remaining) {
         resultBox.className = "alert alert-danger fw-bold fs-5 shadow-sm";
         resultBox.innerHTML = `⛔ 阻擋：${totalAllowed === 0 ? '尚未申請此藥品' : '超量調劑 (剩餘 ' + remaining + ' 支，欲發 ' + qty + ' 支)'}`;
-        renderDispenseHistory(pid); // 擋下也要顯示清單
-        return;
+        renderDispenseHistory(pid); 
+        return false;
       }
       resultBox.className = "alert alert-success fw-bold fs-5 shadow-sm";
       resultBox.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> ✅ 額度足夠！剩餘 ${remaining} ➔ 發出後剩餘 ${remaining - qty}，正在自動寫入紀錄...`;
@@ -170,35 +170,49 @@ async function runDispenseCheck(pid, qty, type, no, note) {
         resultBox.className = "alert alert-danger fw-bold fs-5 shadow-sm";
         resultBox.innerHTML = `⛔ 阻擋：退藥數量 (${qty}) 大於總已領藥量 (${currentUsed})！`;
         renderDispenseHistory(pid);
-        return;
+        return false;
       }
       resultBox.className = "alert alert-success fw-bold fs-5 shadow-sm";
       resultBox.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span> ✅ 退藥檢核通過！正在自動寫入紀錄...`;
     }
     
-    // 👉 通過直接寫入，免點確認
-    await processDispense(pid, qty, type, no, note);
-    resultBox.innerHTML = resultBox.innerHTML.replace('<span class="spinner-border spinner-border-sm me-2"></span>', '💾');
+    const success = await processDispense(pid, qty, type, no, note);
+    if(success) {
+      resultBox.innerHTML = resultBox.innerHTML.replace('<span class="spinner-border spinner-border-sm me-2"></span>', '💾');
+    } else {
+      resultBox.innerHTML = "❌ 寫入發生錯誤，請重試。";
+    }
+    return success;
 }
 
-// 手動輸入模式
-window.manualDispenseModal = function() {
+window.manualDispenseModal = async function() {
+  if(isProcessingDispense) return; // 防呆
   const pid = prompt("請輸入病歷號：");
   if(!pid) return;
   const qtyStr = prompt("請輸入數量 (數字)：");
   if(!qtyStr || isNaN(qtyStr)) return;
   const type = document.getElementById("disp-type").value;
   const note = prompt("請輸入備註 (退藥必填)：");
-  runDispenseCheck(pid.trim().toUpperCase(), parseInt(qtyStr), type, null, note);
+  
+  isProcessingDispense = true;
+  await runDispenseCheck(pid.trim().toUpperCase(), parseInt(qtyStr), type, null, note);
+  isProcessingDispense = false;
 };
 
 document.addEventListener("DOMContentLoaded", () => {
   const barcodeInput = document.getElementById("barcode-input");
   if(!barcodeInput) return;
 
-  barcodeInput.addEventListener("keypress", (e) => {
+  barcodeInput.addEventListener("keypress", async (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
+      
+      // 👉 防連刷核心：如果上一筆還沒處理完，直接忽略接下來所有的 Enter
+      if(isProcessingDispense) {
+          console.warn("系統處理中，忽略重複刷入的條碼");
+          return;
+      }
+      
       const str = barcodeInput.value.trim().toUpperCase();
       if(!str) return;
       
@@ -209,15 +223,32 @@ document.addEventListener("DOMContentLoaded", () => {
            alert(`⚠️ 條碼解析錯誤：藥袋代碼 (${scannedDrugCode}) 與當前頁面 (${State.currentSelectedDrugCode}) 不符！`);
            barcodeInput.value = ""; return;
         }
+        
         const pid = parts[0];
         const qty = parseInt(parts[3]);
         const type = document.getElementById("disp-type").value;
         const no = parts[2];
-        barcodeInput.value = ""; 
         
-        runDispenseCheck(pid, qty, type, no, "");
+        // 🔒 上鎖並凍結輸入框
+        isProcessingDispense = true;
+        barcodeInput.disabled = true;
+        barcodeInput.placeholder = "處理中，請稍候...";
+        
+        try {
+            await runDispenseCheck(pid, qty, type, no, "");
+        } catch(err) {
+            console.error("調劑處理錯誤", err);
+        } finally {
+            // 🔓 執行完畢(無論成功或失敗)，解鎖並清空輸入框，準備迎接下一刷
+            isProcessingDispense = false;
+            barcodeInput.disabled = false;
+            barcodeInput.value = ""; 
+            barcodeInput.placeholder = "確認上方設定無誤後，請刷入藥袋條碼...";
+            barcodeInput.focus();
+        }
       } else {
         alert("條碼格式不符！");
+        barcodeInput.value = "";
       }
     }
   });
