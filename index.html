@@ -63,8 +63,24 @@
         <li class="nav-item"><a href="#" class="nav-link active" onclick="switchView('overview', this)"><i class="bi bi-house-door me-2"></i> 總覽首頁</a></li>
         <div id="dynamic-drug-menu"></div>
         <li class="nav-item mt-4 border-top border-secondary pt-2"><a href="#" class="nav-link" onclick="switchView('drug-manage', this)"><i class="bi bi-gear me-2"></i> 藥品主檔維護</a></li>
-        <li class="nav-item mt-2"><a href="#" class="nav-link text-warning" onclick="forceSyncData()"><i class="bi bi-arrow-repeat me-2"></i> 強制同步最新資料</a></li>
-        <li class="nav-item"><a href="#" class="nav-link text-danger" onclick="logout()"><i class="bi bi-box-arrow-right me-2"></i> 登出</a></li>
+        <li class="nav-item mt-2">
+          <a href="#" class="nav-link text-warning" onclick="forceSyncData()">
+            <i class="bi bi-arrow-repeat me-2"></i> 強制同步最新資料
+          </a>
+        </li>
+        
+        <!-- 👉 新增：顯示目前快取天數的區塊 -->
+        <li class="nav-item px-3 mt-1 mb-2">
+          <div class="text-secondary small fw-bold" style="font-size: 0.8rem;" id="history-days-display">
+            <i class="bi bi-database-check"></i> 快取範圍: 載入中...
+          </div>
+        </li>
+        
+        <li class="nav-item">
+          <a href="#" class="nav-link text-danger" onclick="logout()">
+            <i class="bi bi-box-arrow-right me-2"></i> 登出
+          </a>
+        </li>
       </ul>
     </div>
 
