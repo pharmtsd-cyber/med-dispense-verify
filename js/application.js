@@ -40,18 +40,10 @@ function openApplicationForm() {
   let customCats = [];
   try { if (drug['自訂類別']) customCats = JSON.parse(drug['自訂類別']); } catch(e) {}
   
-  // 向下相容
-  customCats.forEach(cat => {
-      if (!cat.type) {
-          if (cat.name === "初次申請") cat.type = "INITIAL";
-          else if (cat.isBreak) cat.type = "BREAK";
-          else cat.type = "EXTENSION";
-      }
-  });
-
-  // 如果完全沒設定，給予預設
-  if(customCats.length === 0) {
-      customCats = [{name: '初次申請', desc: '系統防呆預設', defDays: 3, defQty: 3, type: 'INITIAL'}];
+  // 👉 防呆：如果完全沒設定，給予預設
+  const hasInitial = customCats.some(c => c.type === 'INITIAL');
+  if(!hasInitial) {
+      customCats.unshift({name: '初次申請', desc: '系統防呆預設', defDays: 3, defQty: 3, type: 'INITIAL'});
   }
   
   let html = '';
@@ -151,15 +143,15 @@ document.addEventListener("DOMContentLoaded", () => {
       let targetRadioId = null;
 
       if (!latestApp) {
-        // 👉 規則 A：無紀錄，僅開放 type 為 INITIAL 的類別
+        // 👉 無紀錄，僅開放帶有 "INITIAL" 屬性的選項
         radios.forEach(r => {
             if (r.getAttribute("data-cat-type") === "INITIAL") {
                 r.disabled = false;
-                if(!targetRadioId) targetRadioId = r.id; // 自動點選第一個可用的 INITIAL
+                if(!targetRadioId) targetRadioId = r.id; // 自動點選第一個 INITIAL
             }
         });
       } else {
-        // 👉 規則 B：有紀錄
+        // 👉 有紀錄，先判斷前一單的屬性
         const currentCycleStart = formatAsDate(latestApp['啟用日期'] || latestApp['申請日期']);
         lockedStartDateStr = currentCycleStart.replace(/\//g, '-');
         
@@ -170,9 +162,10 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
 
+        // 判斷是否達全局上限 (數量或天數任一達標即為滿額)
         const initialQty = parseInt(latestApp['申請數量'] || 0);
         const initialDays = parseInt(latestApp['申請天數'] || 0);
-        const isMaxedOut = (initialQty >= globalMaxQty && initialDays >= globalMaxDays);
+        const isMaxedOut = (initialQty >= globalMaxQty || initialDays >= globalMaxDays);
         const hasUsedExtension = (cycleAppCount >= 2); 
 
         radios.forEach(r => {
@@ -182,7 +175,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 r.disabled = false;
                 if(!targetRadioId) targetRadioId = r.id;
             } else if (catType === "EXTENSION") {
-                // 延伸類別需卡控額度
+                // 一般延伸需卡控額度與次數
                 if (isMaxedOut || hasUsedExtension) {
                     r.disabled = true;
                 } else {
@@ -190,13 +183,13 @@ document.addEventListener("DOMContentLoaded", () => {
                     if(!targetRadioId) targetRadioId = r.id;
                 }
             } else {
-                // INITIAL 在有紀錄時被鎖定
+                // INITIAL 在有紀錄時一律被鎖定
                 r.disabled = true;
             }
         });
 
         if (isMaxedOut || hasUsedExtension) {
-            alert(`此病患本次療程已達全局額度，或已申請過展延。\n僅能選擇「突破限制」之類別建立新療程。`);
+            alert(`此病患本次療程已達全局額度，或已申請過展延。\n僅能選擇「🔴 突破限制」之類別建立新療程。`);
         }
       }
       
@@ -251,7 +244,6 @@ document.addEventListener("DOMContentLoaded", () => {
           
           const today = new Date();
           if (catType === "BREAK" && absoluteMaxEndDate > today) {
-              // 防重疊機制：預設填入前次療程的結束日
               document.getElementById("app-start-date").value = absoluteMaxEndDate.toISOString().split('T')[0];
           } else {
               document.getElementById("app-start-date").value = today.toISOString().split('T')[0];
