@@ -1,13 +1,68 @@
 // js/drug_manage.js
 
 let currentCustomCategories = [];
+let dragStartIndex = null; // 紀錄目前正在拖曳的項目索引
+
+// ==================== 拖拉排序專用事件 ====================
+window.handleDragStart = function(e, index) {
+    dragStartIndex = index;
+    e.target.style.opacity = '0.5'; // 拖曳時半透明
+    e.dataTransfer.effectAllowed = 'move';
+};
+
+window.handleDragOver = function(e) {
+    e.preventDefault(); // 必須 preventDefault 才能觸發 Drop
+    e.dataTransfer.dropEffect = 'move';
+    return false;
+};
+
+window.handleDragEnter = function(e) {
+    e.preventDefault();
+    const target = e.target.closest('.custom-drag-item');
+    if(target) target.classList.add('border-primary', 'border-2'); // 經過時加上藍框
+};
+
+window.handleDragLeave = function(e) {
+    const target = e.target.closest('.custom-drag-item');
+    if(target) target.classList.remove('border-primary', 'border-2');
+};
+
+window.handleDrop = function(e, dropIndex) {
+    e.stopPropagation();
+    e.preventDefault();
+    
+    const target = e.target.closest('.custom-drag-item');
+    if(target) target.classList.remove('border-primary', 'border-2');
+    
+    if (dragStartIndex !== null && dragStartIndex !== dropIndex) {
+        // 👉 防呆：不允許拖動第 0 筆 (初次申請)
+        if (dragStartIndex === 0) return false;
+        
+        // 👉 防呆：如果試圖放到第 0 筆的位置，強制退回第 1 筆 (保護初次申請)
+        if (dropIndex === 0) dropIndex = 1;
+
+        // 執行陣列元素交換/插入
+        const draggedItem = currentCustomCategories.splice(dragStartIndex, 1)[0];
+        currentCustomCategories.splice(dropIndex, 0, draggedItem);
+        
+        renderCustomCategories(); // 重新渲染
+    }
+    return false;
+};
+
+window.handleDragEnd = function(e) {
+    e.target.style.opacity = '1';
+    document.querySelectorAll('.custom-drag-item').forEach(el => el.classList.remove('border-primary', 'border-2'));
+    dragStartIndex = null;
+};
+// ==========================================================
 
 window.renderCustomCategories = function() {
     const container = document.getElementById("custom-categories-container");
     if (!container) return;
     container.innerHTML = "";
 
-    // 自動向下相容舊有資料：將原本的 isBreak 轉換為 type 屬性
+    // 自動向下相容舊資料
     currentCustomCategories.forEach(cat => {
         if (!cat.type) {
             if (cat.name === "初次申請") cat.type = "INITIAL";
@@ -16,15 +71,33 @@ window.renderCustomCategories = function() {
         }
     });
 
+    // 防呆：確保第一筆永遠是初次申請
+    if(currentCustomCategories.length === 0 || currentCustomCategories[0].name !== "初次申請") {
+        const initCat = currentCustomCategories.find(c => c.name === "初次申請") || {name: "初次申請", desc: "系統強制預設：管制期內第一筆申請必選", defDays: 3, defQty: 3, type: "INITIAL"};
+        currentCustomCategories = [initCat, ...currentCustomCategories.filter(c => c.name !== "初次申請")];
+    }
+
     currentCustomCategories.forEach((cat, idx) => {
-        const isInit = (cat.type === "INITIAL"); 
+        const isInit = (idx === 0 && cat.name === "初次申請"); 
+        
+        // 只有非首筆的項目可以被拖曳
+        const dragAttrs = !isInit ? `draggable="true" ondragstart="handleDragStart(event, ${idx})" ondragend="handleDragEnd(event)"` : ``;
+        // 所有項目都可以作為接收放下的目標
+        const dropAttrs = `ondragover="handleDragOver(event)" ondragenter="handleDragEnter(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, ${idx})"`;
+
         container.innerHTML += `
-            <div class="border rounded p-2 mb-2 ${isInit ? 'bg-primary bg-opacity-10' : 'bg-light'} position-relative shadow-sm">
-                <button type="button" class="btn btn-sm btn-danger position-absolute top-0 end-0 m-1" onclick="removeCustomCategory(${idx})"><i class="bi bi-x"></i></button>
-                <div class="row g-2 me-4">
+            <div class="custom-drag-item border rounded p-2 mb-2 ${isInit ? 'bg-primary bg-opacity-10' : 'bg-light'} position-relative shadow-sm transition-all" style="${!isInit ? 'cursor: grab;' : ''}" ${dragAttrs} ${dropAttrs}>
+                
+                <!-- 拖曳手把 (僅非預設項目顯示) -->
+                ${!isInit ? `<div class="position-absolute top-50 start-0 translate-middle-y ms-1 text-secondary"><i class="bi bi-grip-vertical fs-5"></i></div>` : ''}
+                
+                ${!isInit ? `<button type="button" class="btn btn-sm btn-danger position-absolute top-0 end-0 m-1" onclick="removeCustomCategory(${idx})" title="刪除此選項"><i class="bi bi-x"></i></button>` : `<span class="badge bg-primary position-absolute top-0 end-0 m-1">系統鎖定必填 (不可移動)</span>`}
+                
+                <!-- 調整 padding 以容納左側拖曳手把 -->
+                <div class="row g-2 me-4 ${!isInit ? 'ps-3' : ''}">
                     <div class="col-md-5">
                         <label class="small text-muted fw-bold mb-0">選項文字</label>
-                        <input type="text" class="form-control form-control-sm border-primary fw-bold" placeholder="例: 門診初次申請" value="${cat.name}" onchange="currentCustomCategories[${idx}].name = this.value">
+                        <input type="text" class="form-control form-control-sm border-primary fw-bold" placeholder="例: 門診初次申請" value="${cat.name}" ${isInit ? 'readonly' : `onchange="currentCustomCategories[${idx}].name = this.value"`}>
                     </div>
                     <div class="col-md-7">
                         <label class="small text-muted fw-bold mb-0">選項描述</label>
@@ -39,7 +112,6 @@ window.renderCustomCategories = function() {
                         <input type="number" class="form-control form-control-sm" value="${cat.defQty || 3}" onchange="currentCustomCategories[${idx}].defQty = this.value">
                     </div>
                     
-                    <!-- 👉 核心屬性：三種層級的類別屬性 -->
                     <div class="col-12 mt-1">
                         <label class="small text-muted mb-0">類別屬性卡控</label>
                         <select class="form-select form-select-sm border-warning fw-bold" onchange="currentCustomCategories[${idx}].type = this.value; renderCustomCategories();">
@@ -55,7 +127,6 @@ window.renderCustomCategories = function() {
 };
 
 window.addCustomCategory = function() {
-    // 預設給予「一般延伸」
     currentCustomCategories.push({name: "", desc: "", defDays: 3, defQty: 3, type: "EXTENSION"});
     renderCustomCategories();
 };
@@ -126,7 +197,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const globalMaxQty = parseInt(document.getElementById("drug-global-max-qty").value || 0);
     const validCats = currentCustomCategories.filter(c => c.name.trim() !== "");
 
-    // 👉 終極防呆：確保至少有一個「初次類別」
     const hasInitial = validCats.some(c => c.type === "INITIAL");
     if (!hasInitial) {
         alert("⛔ 儲存失敗！\n您必須至少設定一個「初次類別 (INITIAL)」，否則新病患將無法申請藥品！");
