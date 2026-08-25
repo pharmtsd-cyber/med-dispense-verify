@@ -1,6 +1,5 @@
 // js/dispense.js
 
-// 👉 全域鎖：防止連刷與重複觸發
 let isProcessingDispense = false; 
 
 function openDispenseForm() {
@@ -15,6 +14,10 @@ function openDispenseForm() {
   document.getElementById("disp-pharmacist-name").value = user.name;
   document.getElementById("disp-unit").value = user.unit || "";
   
+  // 預設為調劑(綠色)
+  document.getElementById("disp-type-disp").checked = true;
+  document.getElementById("disp-type-disp").dispatchEvent(new Event('change', {bubbles: true}));
+  
   switchView('dispense');
   document.getElementById("barcode-input").value = "";
   document.getElementById("barcode-input").focus();
@@ -23,7 +26,37 @@ function openDispenseForm() {
   renderDispenseHistory(); 
 }
 
+// 👉 監聽調劑/退藥 Radio 按鈕切換，動態改變顏色
+document.addEventListener("DOMContentLoaded", () => {
+    document.querySelectorAll('input[name="disp-type"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            const scanCard = document.getElementById("disp-scan-card");
+            const scanBody = document.getElementById("disp-scan-body");
+            const scanInput = document.getElementById("barcode-input");
+            const scanTitle = document.getElementById("disp-scan-title");
+            
+            if(!scanCard) return;
+
+            if (e.target.value === '調劑') {
+                scanCard.className = "card shadow-sm mb-4 border-success";
+                scanBody.className = "card-body bg-success bg-opacity-10";
+                scanInput.className = "form-control mt-2 border-success form-control-lg text-uppercase fw-bold text-center text-success";
+                scanTitle.className = "text-success fw-bold";
+                scanTitle.innerHTML = '<i class="bi bi-upc-scan"></i> 條碼掃描區 (調劑模式 - 即時寫入)';
+            } else {
+                scanCard.className = "card shadow-sm mb-4 border-danger";
+                scanBody.className = "card-body bg-danger bg-opacity-10";
+                scanInput.className = "form-control mt-2 border-danger form-control-lg text-uppercase fw-bold text-center text-danger";
+                scanTitle.className = "text-danger fw-bold";
+                scanTitle.innerHTML = '<i class="bi bi-arrow-return-left"></i> 條碼掃描區 (退藥模式 - 即時寫入)';
+            }
+            scanInput.focus();
+        });
+    });
+});
+
 function renderDispenseHistory(forcePid = null) {
+  // ...維持原本歷史渲染邏輯 (與前一個版本完全相同，此處省略以省字數)...
   const tbody = document.getElementById("disp-history-table");
   if(!tbody) return;
   
@@ -93,6 +126,7 @@ function calculatePatientQuota(pid, drugCode) {
 }
 
 window.viewAppDetail = function(pid) {
+  // ...維持不變...
   const { latestApp } = calculatePatientQuota(pid, State.currentSelectedDrugCode);
   const contentBox = document.getElementById("appDetailContent");
   if(latestApp) {
@@ -144,7 +178,6 @@ async function processDispense(pid, qty, type, no, note) {
     }
 }
 
-// 核心檢核邏輯改為 async 並回傳 boolean
 async function runDispenseCheck(pid, qty, type, no, note) {
     if(!document.getElementById("disp-unit").value || !document.getElementById("disp-pharmacist-id").value) {
        alert("請先確認「處理單位」與「作業藥師」已設定！"); return false;
@@ -186,12 +219,14 @@ async function runDispenseCheck(pid, qty, type, no, note) {
 }
 
 window.manualDispenseModal = async function() {
-  if(isProcessingDispense) return; // 防呆
+  if(isProcessingDispense) return; 
   const pid = prompt("請輸入病歷號：");
   if(!pid) return;
   const qtyStr = prompt("請輸入數量 (數字)：");
   if(!qtyStr || isNaN(qtyStr)) return;
-  const type = document.getElementById("disp-type").value;
+  
+  // 👉 取得目前點選的 Radio (調劑或退藥)
+  const type = document.querySelector('input[name="disp-type"]:checked').value;
   const note = prompt("請輸入備註 (退藥必填)：");
   
   isProcessingDispense = true;
@@ -207,7 +242,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (e.key === "Enter") {
       e.preventDefault();
       
-      // 👉 防連刷核心：如果上一筆還沒處理完，直接忽略接下來所有的 Enter
       if(isProcessingDispense) {
           console.warn("系統處理中，忽略重複刷入的條碼");
           return;
@@ -226,10 +260,9 @@ document.addEventListener("DOMContentLoaded", () => {
         
         const pid = parts[0];
         const qty = parseInt(parts[3]);
-        const type = document.getElementById("disp-type").value;
+        const type = document.querySelector('input[name="disp-type"]:checked').value;
         const no = parts[2];
         
-        // 🔒 上鎖並凍結輸入框
         isProcessingDispense = true;
         barcodeInput.disabled = true;
         barcodeInput.placeholder = "處理中，請稍候...";
@@ -239,7 +272,6 @@ document.addEventListener("DOMContentLoaded", () => {
         } catch(err) {
             console.error("調劑處理錯誤", err);
         } finally {
-            // 🔓 執行完畢(無論成功或失敗)，解鎖並清空輸入框，準備迎接下一刷
             isProcessingDispense = false;
             barcodeInput.disabled = false;
             barcodeInput.value = ""; 
