@@ -165,20 +165,21 @@ async function initApp(user) {
   if (typeof renderDrugManageTable === "function") renderDrugManageTable(); 
 }
 
+// js/main.js 內的 smartSync 區塊完全替換：
+
 let lastSyncTimestamp = 0;
 let isSmartSyncing = false;
 let smartSyncPromise = null;
 
-// 👉 全新：智能無感同步引擎
+// 👉 升級版：智能無感同步引擎 (加入智慧合併防護)
 window.smartSync = async function(force = false) {
     const now = Date.now();
     
-    // 如果距離上次同步不到 15 秒，且不強制更新，則直接秒回傳 (啟動快取護盾，保障連續刷條碼極速體驗)
+    // 15 秒快取護盾
     if (!force && (now - lastSyncTimestamp < 15000)) {
         return true; 
     }
     
-    // 如果已經有另一個動作正在同步中，就搭順風車等待同一個結果 (避免連按 Enter 發出多個請求)
     if (isSmartSyncing) return smartSyncPromise;
 
     isSmartSyncing = true;
@@ -186,10 +187,38 @@ window.smartSync = async function(force = false) {
         try {
             const syncData = await fetchData(`getSyncData&days=${typeof LOAD_HISTORY_DAYS !== 'undefined' ? LOAD_HISTORY_DAYS : 0}`);
             if (syncData) {
-                State.applications = syncData.applications || [];
-                State.dispenseLogs = syncData.dispenseLogs || [];
+                const cloudApps = syncData.applications || [];
+                const cloudDisp = syncData.dispenseLogs || [];
+                
+                // 🛡️ 智慧合併機制 (Smart Merge)：
+                // 檢查本地暫存的所有申請單，如果雲端傳回來的資料中「還沒有這筆」，就把它保留下來！
+                const localOnlyApps = State.applications.filter(local => {
+                    const localTime = formatAsDate(local['收單時間']) + " " + formatAsTime(local['收單時間']);
+                    return !cloudApps.some(cloud => {
+                        const cloudTime = formatAsDate(cloud['收單時間']) + " " + formatAsTime(cloud['收單時間']);
+                        return String(cloud['病歷號']).toUpperCase() === String(local['病歷號']).toUpperCase() && 
+                               String(cloud['藥品代碼']).toUpperCase() === String(local['藥品代碼']).toUpperCase() && 
+                               cloudTime === localTime;
+                    });
+                });
+                
+                // 同樣的邏輯套用於調劑紀錄
+                const localOnlyDisp = State.dispenseLogs.filter(local => {
+                    const localTime = formatAsDate(local['調劑時間']) + " " + formatAsTime(local['調劑時間']);
+                    return !cloudDisp.some(cloud => {
+                        const cloudTime = formatAsDate(cloud['調劑時間']) + " " + formatAsTime(cloud['調劑時間']);
+                        return String(cloud['病歷號']).toUpperCase() === String(local['病歷號']).toUpperCase() && 
+                               String(cloud['藥品代碼']).toUpperCase() === String(local['藥品代碼']).toUpperCase() && 
+                               cloudTime === localTime;
+                    });
+                });
+
+                // 將雲端資料與尚未進入雲端的最新本地資料「完美合併」
+                State.applications = [...cloudApps, ...localOnlyApps];
+                State.dispenseLogs = [...cloudDisp, ...localOnlyDisp];
                 State.allDrugs = syncData.allDrugs || [];
-                lastSyncTimestamp = Date.now(); // 更新護盾時間
+                
+                lastSyncTimestamp = Date.now();
             }
             return true;
         } catch (e) {
@@ -203,12 +232,11 @@ window.smartSync = async function(force = false) {
     return smartSyncPromise;
 };
 
-// 手動強制同步按鈕改為呼叫智能引擎 (強制更新)
 window.forceSyncData = async function() {
   if(!checkNetwork()) return;
   alert("開始與伺服器同步最新資料，請稍候...");
   
-  await window.smartSync(true); // 傳入 true 無視 15 秒護盾
+  await window.smartSync(true); 
   
   if (State.currentSelectedDrugCode) {
     refreshSingleDrugDashboard();
