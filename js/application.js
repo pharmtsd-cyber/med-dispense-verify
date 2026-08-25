@@ -74,19 +74,24 @@ function renderAppHistory() {
   const startStr = document.getElementById("app-hist-start").value.replace(/-/g, '/');
   const endStr = document.getElementById("app-hist-end").value.replace(/-/g, '/');
   
-  let sortedApps = [...State.applications].sort((a,b) => new Date(formatAsDate(b['申請日期'])+' '+(formatAsTime(b['收單時間'])||'00:00:00')) - new Date(formatAsDate(a['申請日期'])+' '+(formatAsTime(a['收單時間'])||'00:00:00')));
+  // 歷史清單依然依照「收單時間」排序，因為這代表操作的先後順序
+  let sortedApps = [...State.applications].sort((a,b) => new Date(formatAsDate(b['收單時間'])+' '+(formatAsTime(b['收單時間'])||'00:00:00')) - new Date(formatAsDate(a['收單時間'])+' '+(formatAsTime(a['收單時間'])||'00:00:00')));
   let html = "";
   sortedApps.forEach(app => {
     if(String(app['藥品代碼']).toUpperCase() === State.currentSelectedDrugCode && app['作廢'] !== 'Y') {
       const appPid = String(app['病歷號']).toUpperCase();
       if(pidFilter && !appPid.includes(pidFilter)) return;
-      const appDateStr = formatAsDate(app['申請日期']);
-      if(startStr && appDateStr < startStr) return;
-      if(endStr && appDateStr > endStr) return;
+      
+      // 查詢條件也改為篩選「啟用日期」
+      let actDateStr = formatAsDate(app['啟用日期']);
+      if (!actDateStr) actDateStr = formatAsDate(app['收單時間']); 
+      
+      if(startStr && actDateStr < startStr) return;
+      if(endStr && actDateStr > endStr) return;
 
       html += `<tr>
-        <td>${appDateStr} ${formatAsTime(app['收單時間'])}</td>
-        <td>${formatAsDate(app['啟用日期']) || '-'}</td>
+        <td>${formatAsDate(app['收單時間'])} ${formatAsTime(app['收單時間'])}</td>
+        <td class="fw-bold text-success">${actDateStr || '-'}</td>
         <td class="fw-bold text-primary">${appPid}</td>
         <td><span class="badge bg-info text-dark">${app['申請類別']}</span></td>
         <td class="fw-bold">${app['申請天數']} 天 / ${app['申請數量']} 支</td>
@@ -134,7 +139,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const controlDays = parseInt(drug['管制天數'] || 14);
       
-      // 👉 關鍵修復：將基準日期歸零至午夜 00:00:00，避免當天建單卻因時分秒落差被過濾掉
+      // 計算管制界線 (今天往前推 N 天)
       const cutoffDate = new Date();
       cutoffDate.setHours(0, 0, 0, 0); 
       cutoffDate.setDate(cutoffDate.getDate() - controlDays);
@@ -144,16 +149,27 @@ document.addEventListener("DOMContentLoaded", () => {
 
       State.applications.forEach(app => {
         if (String(app['病歷號']).toUpperCase() === pid && String(app['藥品代碼']).toUpperCase() === drugCode && app['作廢'] !== 'Y') {
-          const appDate = new Date(formatAsDate(app['申請日期']));
-          appDate.setHours(0, 0, 0, 0);
           
-          if (appDate >= cutoffDate) {
-            let sDate = new Date(formatAsDate(app['啟用日期'] || app['申請日期']));
-            let eDate = new Date(sDate);
+          // 👉 核心修正：以「啟用日期」作為判斷基礎 (支援預先收單未來的日期)
+          let actDateStr = formatAsDate(app['啟用日期']);
+          if (!actDateStr) actDateStr = formatAsDate(app['收單時間']); // 舊資料防呆
+
+          const actDate = new Date(actDateStr);
+          actDate.setHours(0, 0, 0, 0);
+          
+          // 只要「啟用日期」大於等於 cutoffDate (代表在管制期內，或是未來的預開單)
+          if (actDate >= cutoffDate) {
+            
+            // 計算該次療程的「最晚結束日期」
+            let eDate = new Date(actDate);
             eDate.setDate(eDate.getDate() + parseInt(app['申請天數'] || 0));
             if (eDate > absoluteMaxEndDate) absoluteMaxEndDate = eDate;
 
-            if(!latestApp || new Date(formatAsDate(app['申請日期'])+' '+(formatAsTime(app['收單時間'])||'00:00:00')) > new Date(formatAsDate(latestApp['申請日期'])+' '+(formatAsTime(latestApp['收單時間'])||'00:00:00'))) {
+            // 尋找「最新一筆操作」 (這裡必須用收單時間比對，才知道藥師最後對這個病人做了什麼動作)
+            const currentAppActionTime = new Date(formatAsDate(app['收單時間'])+' '+(formatAsTime(app['收單時間'])||'00:00:00'));
+            const latestAppActionTime = latestApp ? new Date(formatAsDate(latestApp['收單時間'])+' '+(formatAsTime(latestApp['收單時間'])||'00:00:00')) : new Date(0);
+
+            if(!latestApp || currentAppActionTime > latestAppActionTime) {
                 latestApp = app;
             }
           }
@@ -168,16 +184,21 @@ document.addEventListener("DOMContentLoaded", () => {
                 r.disabled = false;
             }
         });
-        // 👉 動態文字：無紀錄
-        document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-check-circle text-success fw-bold"></i> ✅ 查無近期紀錄，請點選上方亮起的「初次類別」。';
+        document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-check-circle text-success fw-bold"></i> ✅ 查無近期有效紀錄，請點選上方亮起的「初次類別」。';
       } else {
-        const currentCycleStart = formatAsDate(latestApp['啟用日期'] || latestApp['申請日期']);
-        lockedStartDateStr = currentCycleStart.replace(/\//g, '-');
+        // 👉 鎖定日期同樣必須取自最新一筆的「啟用日期」
+        let latestActDateStr = formatAsDate(latestApp['啟用日期']);
+        if (!latestActDateStr) latestActDateStr = formatAsDate(latestApp['收單時間']);
+
+        lockedStartDateStr = latestActDateStr.replace(/\//g, '-');
         
         let cycleAppCount = 0;
         State.applications.forEach(app => {
             if (String(app['病歷號']).toUpperCase() === pid && String(app['藥品代碼']).toUpperCase() === drugCode && app['作廢'] !== 'Y') {
-                if (formatAsDate(app['啟用日期'] || app['申請日期']) === currentCycleStart) cycleAppCount++;
+                let thisActDateStr = formatAsDate(app['啟用日期']);
+                if (!thisActDateStr) thisActDateStr = formatAsDate(app['收單時間']);
+                // 如果啟用日期相同，視為同一個展延週期
+                if (thisActDateStr === latestActDateStr) cycleAppCount++;
             }
         });
 
@@ -197,16 +218,14 @@ document.addEventListener("DOMContentLoaded", () => {
                     r.disabled = false;
                 }
             } else {
-                r.disabled = true;
+                r.disabled = true; // 有近期啟用紀錄，鎖定 INITIAL
             }
         });
 
         if (isMaxedOut || hasUsedExtension) {
-            // 👉 動態文字：額度已滿
             document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-exclamation-triangle text-danger fw-bold"></i> ⚠️ 本次療程已達全局額度，僅能選擇「突破限制」建立新療程。';
             alert(`此病患本次療程已達全局額度，或已申請過展延。\n僅能選擇「🔴 突破限制」之類別建立新療程。`);
         } else {
-            // 👉 動態文字：有紀錄且尚有額度
             document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-info-circle text-primary fw-bold"></i> 🔍 已找到近期紀錄，可選擇「一般延伸」或「突破限制」。';
         }
       }
@@ -261,6 +280,7 @@ document.addEventListener("DOMContentLoaded", () => {
           document.getElementById("app-start-date").readOnly = false;
           
           const today = new Date();
+          // 若為突破限制，防重疊起點設為「前次最晚結束日」與「今天」兩者取晚
           if (catType === "BREAK" && absoluteMaxEndDate > today) {
               document.getElementById("app-start-date").value = absoluteMaxEndDate.toISOString().split('T')[0];
           } else {
@@ -287,6 +307,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const startDateRaw = document.getElementById("app-start-date").value;
     const startDateStr = startDateRaw ? startDateRaw.replace(/-/g, '/') : formatAsDate(new Date()); 
     
+    // 👉 終極防疊：突破限制的啟用日不得小於前次療程的結束日 (包含未來的預開單)
     if (catType === "BREAK" && new Date(startDateStr) < absoluteMaxEndDate) {
         alert(`⛔ 突破限制(新療程)的啟用日期不可與前次重疊！\n前次療程將於 ${formatAsDate(absoluteMaxEndDate)} 結束，您必須選取此日期或更晚的日期。`);
         return;
