@@ -40,7 +40,6 @@ function openApplicationForm() {
   let customCats = [];
   try { if (drug['自訂類別']) customCats = JSON.parse(drug['自訂類別']); } catch(e) {}
   
-  // 👉 防呆：如果完全沒設定，給予預設
   const hasInitial = customCats.some(c => c.type === 'INITIAL');
   if(!hasInitial) {
       customCats.unshift({name: '初次申請', desc: '系統防呆預設', defDays: 3, defQty: 3, type: 'INITIAL'});
@@ -100,7 +99,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if(!inputAppPid) return;
 
-  inputAppPid.addEventListener("blur", async () => {
+  // 👉 將檢核邏輯獨立成一個函數
+  const runPidCheck = async () => {
     const pid = inputAppPid.value.trim().toUpperCase();
     inputAppPid.value = pid;
     const drugCode = State.currentSelectedDrugCode;
@@ -143,15 +143,13 @@ document.addEventListener("DOMContentLoaded", () => {
       let targetRadioId = null;
 
       if (!latestApp) {
-        // 👉 無紀錄，僅開放帶有 "INITIAL" 屬性的選項
         radios.forEach(r => {
             if (r.getAttribute("data-cat-type") === "INITIAL") {
                 r.disabled = false;
-                if(!targetRadioId) targetRadioId = r.id; // 自動點選第一個 INITIAL
+                if(!targetRadioId) targetRadioId = r.id; 
             }
         });
       } else {
-        // 👉 有紀錄，先判斷前一單的屬性
         const currentCycleStart = formatAsDate(latestApp['啟用日期'] || latestApp['申請日期']);
         lockedStartDateStr = currentCycleStart.replace(/\//g, '-');
         
@@ -162,7 +160,6 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
 
-        // 判斷是否達全局上限 (數量或天數任一達標即為滿額)
         const initialQty = parseInt(latestApp['申請數量'] || 0);
         const initialDays = parseInt(latestApp['申請天數'] || 0);
         const isMaxedOut = (initialQty >= globalMaxQty || initialDays >= globalMaxDays);
@@ -171,11 +168,9 @@ document.addEventListener("DOMContentLoaded", () => {
         radios.forEach(r => {
             const catType = r.getAttribute("data-cat-type");
             if (catType === "BREAK") {
-                // 突破限制隨時可選
                 r.disabled = false;
                 if(!targetRadioId) targetRadioId = r.id;
             } else if (catType === "EXTENSION") {
-                // 一般延伸需卡控額度與次數
                 if (isMaxedOut || hasUsedExtension) {
                     r.disabled = true;
                 } else {
@@ -183,7 +178,6 @@ document.addEventListener("DOMContentLoaded", () => {
                     if(!targetRadioId) targetRadioId = r.id;
                 }
             } else {
-                // INITIAL 在有紀錄時一律被鎖定
                 r.disabled = true;
             }
         });
@@ -200,6 +194,16 @@ document.addEventListener("DOMContentLoaded", () => {
               document.getElementById("app-type-group").dispatchEvent(new Event('change', { bubbles: true }));
           }
       }
+    }
+  };
+
+  // 👉 綁定兩種事件：離開欄位(blur) 或 按下Enter鍵(keypress)
+  inputAppPid.addEventListener("blur", runPidCheck);
+  
+  inputAppPid.addEventListener("keypress", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault(); // 阻擋 Enter 鍵意外送出表單
+      runPidCheck();
     }
   });
 
