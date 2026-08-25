@@ -1,17 +1,17 @@
 // js/drug_manage.js
 
 let currentCustomCategories = [];
-let dragStartIndex = null; // 紀錄目前正在拖曳的項目索引
+let dragStartIndex = null; 
 
 // ==================== 拖拉排序專用事件 ====================
 window.handleDragStart = function(e, index) {
     dragStartIndex = index;
-    e.target.style.opacity = '0.5'; // 拖曳時半透明
+    e.target.style.opacity = '0.5'; 
     e.dataTransfer.effectAllowed = 'move';
 };
 
 window.handleDragOver = function(e) {
-    e.preventDefault(); // 必須 preventDefault 才能觸發 Drop
+    e.preventDefault(); 
     e.dataTransfer.dropEffect = 'move';
     return false;
 };
@@ -19,7 +19,7 @@ window.handleDragOver = function(e) {
 window.handleDragEnter = function(e) {
     e.preventDefault();
     const target = e.target.closest('.custom-drag-item');
-    if(target) target.classList.add('border-primary', 'border-2'); // 經過時加上藍框
+    if(target) target.classList.add('border-primary', 'border-2'); 
 };
 
 window.handleDragLeave = function(e) {
@@ -35,17 +35,10 @@ window.handleDrop = function(e, dropIndex) {
     if(target) target.classList.remove('border-primary', 'border-2');
     
     if (dragStartIndex !== null && dragStartIndex !== dropIndex) {
-        // 👉 防呆：不允許拖動第 0 筆 (初次申請)
-        if (dragStartIndex === 0) return false;
-        
-        // 👉 防呆：如果試圖放到第 0 筆的位置，強制退回第 1 筆 (保護初次申請)
-        if (dropIndex === 0) dropIndex = 1;
-
-        // 執行陣列元素交換/插入
+        // 👉 已經移除所有鎖定，所有選項都可以自由拖曳交換
         const draggedItem = currentCustomCategories.splice(dragStartIndex, 1)[0];
         currentCustomCategories.splice(dropIndex, 0, draggedItem);
-        
-        renderCustomCategories(); // 重新渲染
+        renderCustomCategories(); 
     }
     return false;
 };
@@ -57,12 +50,41 @@ window.handleDragEnd = function(e) {
 };
 // ==========================================================
 
+// 👉 即時驗證函數 (不重新渲染畫面，只動態加上紅框，避免輸入時失去焦點)
+window.validateCustomCategories = function() {
+    const globalMaxDays = parseInt(document.getElementById("drug-global-max-days").value) || 0;
+    const globalMaxQty = parseInt(document.getElementById("drug-global-max-qty").value) || 0;
+    
+    document.querySelectorAll('.custom-cat-days').forEach(input => {
+        if (parseInt(input.value) > globalMaxDays) {
+            input.classList.add('is-invalid', 'border-danger', 'border-2');
+            input.previousElementSibling.classList.add('text-danger', 'fw-bold');
+            input.previousElementSibling.classList.remove('text-muted');
+        } else {
+            input.classList.remove('is-invalid', 'border-danger', 'border-2');
+            input.previousElementSibling.classList.remove('text-danger', 'fw-bold');
+            input.previousElementSibling.classList.add('text-muted');
+        }
+    });
+    
+    document.querySelectorAll('.custom-cat-qty').forEach(input => {
+        if (parseInt(input.value) > globalMaxQty) {
+            input.classList.add('is-invalid', 'border-danger', 'border-2');
+            input.previousElementSibling.classList.add('text-danger', 'fw-bold');
+            input.previousElementSibling.classList.remove('text-muted');
+        } else {
+            input.classList.remove('is-invalid', 'border-danger', 'border-2');
+            input.previousElementSibling.classList.remove('text-danger', 'fw-bold');
+            input.previousElementSibling.classList.add('text-muted');
+        }
+    });
+};
+
 window.renderCustomCategories = function() {
     const container = document.getElementById("custom-categories-container");
     if (!container) return;
     container.innerHTML = "";
 
-    // 自動向下相容舊資料
     currentCustomCategories.forEach(cat => {
         if (!cat.type) {
             if (cat.name === "初次申請") cat.type = "INITIAL";
@@ -71,45 +93,36 @@ window.renderCustomCategories = function() {
         }
     });
 
-    // 防呆：確保第一筆永遠是初次申請
-    if(currentCustomCategories.length === 0 || currentCustomCategories[0].name !== "初次申請") {
-        const initCat = currentCustomCategories.find(c => c.name === "初次申請") || {name: "初次申請", desc: "系統強制預設：管制期內第一筆申請必選", defDays: 3, defQty: 3, type: "INITIAL"};
-        currentCustomCategories = [initCat, ...currentCustomCategories.filter(c => c.name !== "初次申請")];
+    if(currentCustomCategories.length === 0) {
+        currentCustomCategories.push({name: "初次申請", desc: "系統預設", defDays: 3, defQty: 3, type: "INITIAL"});
     }
 
     currentCustomCategories.forEach((cat, idx) => {
-        const isInit = (idx === 0 && cat.name === "初次申請"); 
-        
-        // 只有非首筆的項目可以被拖曳
-        const dragAttrs = !isInit ? `draggable="true" ondragstart="handleDragStart(event, ${idx})" ondragend="handleDragEnd(event)"` : ``;
-        // 所有項目都可以作為接收放下的目標
+        const dragAttrs = `draggable="true" ondragstart="handleDragStart(event, ${idx})" ondragend="handleDragEnd(event)"`;
         const dropAttrs = `ondragover="handleDragOver(event)" ondragenter="handleDragEnter(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, ${idx})"`;
 
+        // 👉 所有項目皆解鎖，皆可拖曳、編輯、刪除
         container.innerHTML += `
-            <div class="custom-drag-item border rounded p-2 mb-2 ${isInit ? 'bg-primary bg-opacity-10' : 'bg-light'} position-relative shadow-sm transition-all" style="${!isInit ? 'cursor: grab;' : ''}" ${dragAttrs} ${dropAttrs}>
+            <div class="custom-drag-item border rounded p-2 mb-2 bg-light position-relative shadow-sm transition-all" style="cursor: grab;" ${dragAttrs} ${dropAttrs}>
+                <div class="position-absolute top-50 start-0 translate-middle-y ms-1 text-secondary"><i class="bi bi-grip-vertical fs-5"></i></div>
+                <button type="button" class="btn btn-sm btn-danger position-absolute top-0 end-0 m-1" onclick="removeCustomCategory(${idx})" title="刪除此選項"><i class="bi bi-x"></i></button>
                 
-                <!-- 拖曳手把 (僅非預設項目顯示) -->
-                ${!isInit ? `<div class="position-absolute top-50 start-0 translate-middle-y ms-1 text-secondary"><i class="bi bi-grip-vertical fs-5"></i></div>` : ''}
-                
-                ${!isInit ? `<button type="button" class="btn btn-sm btn-danger position-absolute top-0 end-0 m-1" onclick="removeCustomCategory(${idx})" title="刪除此選項"><i class="bi bi-x"></i></button>` : `<span class="badge bg-primary position-absolute top-0 end-0 m-1">系統鎖定必填 (不可移動)</span>`}
-                
-                <!-- 調整 padding 以容納左側拖曳手把 -->
-                <div class="row g-2 me-4 ${!isInit ? 'ps-3' : ''}">
+                <div class="row g-2 me-4 ps-3">
                     <div class="col-md-5">
                         <label class="small text-muted fw-bold mb-0">選項文字</label>
-                        <input type="text" class="form-control form-control-sm border-primary fw-bold" placeholder="例: 門診初次申請" value="${cat.name}" ${isInit ? 'readonly' : `onchange="currentCustomCategories[${idx}].name = this.value"`}>
+                        <input type="text" class="form-control form-control-sm border-primary fw-bold" placeholder="例: 門診初次申請" value="${cat.name}" oninput="currentCustomCategories[${idx}].name = this.value">
                     </div>
                     <div class="col-md-7">
                         <label class="small text-muted fw-bold mb-0">選項描述</label>
-                        <input type="text" class="form-control form-control-sm border-info" placeholder="說明文字..." value="${cat.desc || ''}" onchange="currentCustomCategories[${idx}].desc = this.value">
+                        <input type="text" class="form-control form-control-sm border-info" placeholder="說明文字..." value="${cat.desc || ''}" oninput="currentCustomCategories[${idx}].desc = this.value">
                     </div>
                     <div class="col-6">
-                        <label class="small text-muted mb-0">預設天數 (不可大於全局)</label>
-                        <input type="number" class="form-control form-control-sm" value="${cat.defDays || 3}" onchange="currentCustomCategories[${idx}].defDays = this.value">
+                        <label class="small text-muted mb-0 transition-all">預設天數 (不可大於全局)</label>
+                        <input type="number" class="form-control form-control-sm custom-cat-days transition-all" value="${cat.defDays || 3}" oninput="currentCustomCategories[${idx}].defDays = this.value; validateCustomCategories();">
                     </div>
                     <div class="col-6">
-                        <label class="small text-muted mb-0">預設數量 (不可大於全局)</label>
-                        <input type="number" class="form-control form-control-sm" value="${cat.defQty || 3}" onchange="currentCustomCategories[${idx}].defQty = this.value">
+                        <label class="small text-muted mb-0 transition-all">預設數量 (不可大於全局)</label>
+                        <input type="number" class="form-control form-control-sm custom-cat-qty transition-all" value="${cat.defQty || 3}" oninput="currentCustomCategories[${idx}].defQty = this.value; validateCustomCategories();">
                     </div>
                     
                     <div class="col-12 mt-1">
@@ -124,6 +137,7 @@ window.renderCustomCategories = function() {
             </div>
         `;
     });
+    validateCustomCategories(); // 渲染後馬上觸發一次驗證
 };
 
 window.addCustomCategory = function() {
@@ -184,6 +198,12 @@ function renderDrugManageTable() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  // 👉 監聽全局設定變更，即時觸發下方自訂類別的紅框驗證
+  const maxDaysInput = document.getElementById("drug-global-max-days");
+  const maxQtyInput = document.getElementById("drug-global-max-qty");
+  if(maxDaysInput) maxDaysInput.addEventListener('input', validateCustomCategories);
+  if(maxQtyInput) maxQtyInput.addEventListener('input', validateCustomCategories);
+
   const drugForm = document.getElementById("drug-form");
   if(!drugForm) return;
 
@@ -199,7 +219,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const hasInitial = validCats.some(c => c.type === "INITIAL");
     if (!hasInitial) {
-        alert("⛔ 儲存失敗！\n您必須至少設定一個「初次類別 (INITIAL)」，否則新病患將無法申請藥品！");
+        alert("⛔ 儲存失敗！\n您必須至少設定一個「🔵 初次類別 (INITIAL)」，否則新病患將無法申請藥品！");
         btnSave.disabled = false;
         btnSave.innerText = "儲存藥品設定";
         return;
@@ -208,7 +228,7 @@ document.addEventListener("DOMContentLoaded", () => {
     for (let i = 0; i < validCats.length; i++) {
       const cat = validCats[i];
       if (parseInt(cat.defDays) > globalMaxDays || parseInt(cat.defQty) > globalMaxQty) {
-        alert(`⛔ 儲存失敗！\n選項【${cat.name}】的預設天數 (${cat.defDays}) 或數量 (${cat.defQty})\n不可超過全局的 最大天數(${globalMaxDays}) 或 數量(${globalMaxQty})！`);
+        alert(`⛔ 儲存失敗！\n選項【${cat.name}】的預設值已被紅框標記，不可超過全局的最大天數或數量！`);
         btnSave.disabled = false;
         btnSave.innerText = "儲存藥品設定";
         return;
