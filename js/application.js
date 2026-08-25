@@ -67,6 +67,8 @@ function openApplicationForm() {
   renderAppHistory(); 
 }
 
+// 在 js/application.js 中替換 renderAppHistory 函數：
+
 function renderAppHistory() {
   const tbody = document.getElementById("app-history-table");
   if(!tbody) return;
@@ -74,15 +76,32 @@ function renderAppHistory() {
   const startStr = document.getElementById("app-hist-start").value.replace(/-/g, '/');
   const endStr = document.getElementById("app-hist-end").value.replace(/-/g, '/');
   
-  // 歷史清單依然依照「收單時間」排序，因為這代表操作的先後順序
-  let sortedApps = [...State.applications].sort((a,b) => new Date(formatAsDate(b['收單時間'])+' '+(formatAsTime(b['收單時間'])||'00:00:00')) - new Date(formatAsDate(a['收單時間'])+' '+(formatAsTime(a['收單時間'])||'00:00:00')));
+  // 👉 取得使用者選擇的排序方式
+  const sortSelect = document.getElementById("app-hist-sort");
+  const sortBy = sortSelect ? sortSelect.value : 'logTime';
+  
+  // 👉 智慧排序邏輯
+  let sortedApps = [...State.applications].sort((a,b) => {
+      // 1. 如果選擇「啟用日期」排序
+      if (sortBy === 'actDate') {
+          const dateA = new Date(formatAsDate(a['啟用日期'] || a['收單時間']));
+          const dateB = new Date(formatAsDate(b['啟用日期'] || b['收單時間']));
+          if (dateB.getTime() !== dateA.getTime()) {
+              return dateB - dateA; // 啟用日較新的在上面
+          }
+      }
+      // 2. 預設 (或是當兩者啟用日期相同時)，以「LOG 收單時間」做精準排序
+      const timeA = new Date(formatAsDate(a['收單時間'])+' '+(formatAsTime(a['收單時間'])||'00:00:00'));
+      const timeB = new Date(formatAsDate(b['收單時間'])+' '+(formatAsTime(b['收單時間'])||'00:00:00'));
+      return timeB - timeA; // 建單時間較新的在上面
+  });
+  
   let html = "";
   sortedApps.forEach(app => {
     if(String(app['藥品代碼']).toUpperCase() === State.currentSelectedDrugCode && app['作廢'] !== 'Y') {
       const appPid = String(app['病歷號']).toUpperCase();
       if(pidFilter && !appPid.includes(pidFilter)) return;
       
-      // 查詢條件也改為篩選「啟用日期」
       let actDateStr = formatAsDate(app['啟用日期']);
       if (!actDateStr) actDateStr = formatAsDate(app['收單時間']); 
       
