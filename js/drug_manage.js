@@ -6,43 +6,48 @@ window.renderCustomCategories = function() {
     const container = document.getElementById("custom-categories-container");
     if (!container) return;
     container.innerHTML = "";
-    
-    if(currentCustomCategories.length === 0 || currentCustomCategories[0].name !== "初次申請") {
-        const initCat = currentCustomCategories.find(c => c.name === "初次申請") || {name: "初次申請", desc: "系統強制預設：管制期內第一筆申請必選", defDays: 3, defQty: 3, isBreak: false};
-        currentCustomCategories = [initCat, ...currentCustomCategories.filter(c => c.name !== "初次申請")];
-    }
+
+    // 自動向下相容舊有資料：將原本的 isBreak 轉換為 type 屬性
+    currentCustomCategories.forEach(cat => {
+        if (!cat.type) {
+            if (cat.name === "初次申請") cat.type = "INITIAL";
+            else if (cat.isBreak) cat.type = "BREAK";
+            else cat.type = "EXTENSION";
+        }
+    });
 
     currentCustomCategories.forEach((cat, idx) => {
-        const isInit = (idx === 0 && cat.name === "初次申請"); 
+        const isInit = (cat.type === "INITIAL"); 
         container.innerHTML += `
             <div class="border rounded p-2 mb-2 ${isInit ? 'bg-primary bg-opacity-10' : 'bg-light'} position-relative shadow-sm">
-                ${!isInit ? `<button type="button" class="btn btn-sm btn-danger position-absolute top-0 end-0 m-1" onclick="removeCustomCategory(${idx})"><i class="bi bi-x"></i></button>` : `<span class="badge bg-primary position-absolute top-0 end-0 m-1">系統鎖定必填</span>`}
+                <button type="button" class="btn btn-sm btn-danger position-absolute top-0 end-0 m-1" onclick="removeCustomCategory(${idx})"><i class="bi bi-x"></i></button>
                 <div class="row g-2 me-4">
                     <div class="col-md-5">
                         <label class="small text-muted fw-bold mb-0">選項文字</label>
-                        <input type="text" class="form-control form-control-sm border-primary fw-bold" value="${cat.name}" ${isInit ? 'readonly' : `onchange="currentCustomCategories[${idx}].name = this.value"`}>
+                        <input type="text" class="form-control form-control-sm border-primary fw-bold" placeholder="例: 門診初次申請" value="${cat.name}" onchange="currentCustomCategories[${idx}].name = this.value">
                     </div>
                     <div class="col-md-7">
                         <label class="small text-muted fw-bold mb-0">選項描述</label>
-                        <input type="text" class="form-control form-control-sm border-info" placeholder="例: 突破健保限制..." value="${cat.desc || ''}" onchange="currentCustomCategories[${idx}].desc = this.value">
+                        <input type="text" class="form-control form-control-sm border-info" placeholder="說明文字..." value="${cat.desc || ''}" onchange="currentCustomCategories[${idx}].desc = this.value">
                     </div>
                     <div class="col-6">
-                        <label class="small text-muted mb-0">預設天數 (不可大於全局上限)</label>
+                        <label class="small text-muted mb-0">預設天數 (不可大於全局)</label>
                         <input type="number" class="form-control form-control-sm" value="${cat.defDays || 3}" onchange="currentCustomCategories[${idx}].defDays = this.value">
                     </div>
                     <div class="col-6">
-                        <label class="small text-muted mb-0">預設數量 (不可大於全局上限)</label>
+                        <label class="small text-muted mb-0">預設數量 (不可大於全局)</label>
                         <input type="number" class="form-control form-control-sm" value="${cat.defQty || 3}" onchange="currentCustomCategories[${idx}].defQty = this.value">
                     </div>
-                    <!-- 👉 核心屬性：是否突破限制 -->
-                    ${!isInit ? `
+                    
+                    <!-- 👉 核心屬性：三種層級的類別屬性 -->
                     <div class="col-12 mt-1">
-                        <label class="small text-muted mb-0">類別屬性</label>
-                        <select class="form-select form-select-sm border-warning fw-bold" onchange="currentCustomCategories[${idx}].isBreak = (this.value === 'true')">
-                            <option value="false" ${cat.isBreak ? '' : 'selected'}>一般延伸 (綁定前次日期，合併計算額度)</option>
-                            <option value="true" ${cat.isBreak ? 'selected' : ''}>突破限制 (視為新療程，獨立日期與額度)</option>
+                        <label class="small text-muted mb-0">類別屬性卡控</label>
+                        <select class="form-select form-select-sm border-warning fw-bold" onchange="currentCustomCategories[${idx}].type = this.value; renderCustomCategories();">
+                            <option value="INITIAL" ${cat.type === 'INITIAL' ? 'selected' : ''}>🔵 初次類別 (無紀錄時必定且僅能選此類)</option>
+                            <option value="EXTENSION" ${cat.type === 'EXTENSION' ? 'selected' : ''}>🟢 一般延伸 (綁定前次日期，合併計算額度)</option>
+                            <option value="BREAK" ${cat.type === 'BREAK' ? 'selected' : ''}>🔴 突破限制 (視為新療程，獨立日期與額度)</option>
                         </select>
-                    </div>` : ''}
+                    </div>
                 </div>
             </div>
         `;
@@ -50,8 +55,8 @@ window.renderCustomCategories = function() {
 };
 
 window.addCustomCategory = function() {
-    // 預設為一般延伸
-    currentCustomCategories.push({name: "", desc: "", defDays: 3, defQty: 3, isBreak: false});
+    // 預設給予「一般延伸」
+    currentCustomCategories.push({name: "", desc: "", defDays: 3, defQty: 3, type: "EXTENSION"});
     renderCustomCategories();
 };
 
@@ -93,7 +98,6 @@ function renderDrugManageTable() {
         document.getElementById("drug-code").value = drug['藥品代碼'];
         document.getElementById("drug-name").value = drug['藥品名稱'];
         document.getElementById("drug-control-days").value = drug['管制天數'];
-        // 👉 讀取新的全局上限
         document.getElementById("drug-global-max-days").value = drug['每次最大申請天數'] || 5;
         document.getElementById("drug-global-max-qty").value = drug['每次最大申請量'] || 5;
         document.getElementById("drug-status").value = String(drug['啟用狀態']).toUpperCase() || 'Y';
@@ -118,13 +122,33 @@ document.addEventListener("DOMContentLoaded", () => {
     btnSave.disabled = true;
     btnSave.innerText = "儲存中...";
     
+    const globalMaxDays = parseInt(document.getElementById("drug-global-max-days").value || 0);
+    const globalMaxQty = parseInt(document.getElementById("drug-global-max-qty").value || 0);
     const validCats = currentCustomCategories.filter(c => c.name.trim() !== "");
+
+    // 👉 終極防呆：確保至少有一個「初次類別」
+    const hasInitial = validCats.some(c => c.type === "INITIAL");
+    if (!hasInitial) {
+        alert("⛔ 儲存失敗！\n您必須至少設定一個「初次類別 (INITIAL)」，否則新病患將無法申請藥品！");
+        btnSave.disabled = false;
+        btnSave.innerText = "儲存藥品設定";
+        return;
+    }
+
+    for (let i = 0; i < validCats.length; i++) {
+      const cat = validCats[i];
+      if (parseInt(cat.defDays) > globalMaxDays || parseInt(cat.defQty) > globalMaxQty) {
+        alert(`⛔ 儲存失敗！\n選項【${cat.name}】的預設天數 (${cat.defDays}) 或數量 (${cat.defQty})\n不可超過全局的 最大天數(${globalMaxDays}) 或 數量(${globalMaxQty})！`);
+        btnSave.disabled = false;
+        btnSave.innerText = "儲存藥品設定";
+        return;
+      }
+    }
     
     const dataObj = {
       "藥品代碼": document.getElementById("drug-code").value.trim().toUpperCase(),
       "藥品名稱": document.getElementById("drug-name").value.trim(),
       "管制天數": document.getElementById("drug-control-days").value,
-      // 👉 儲存新的全局上限
       "每次最大申請天數": document.getElementById("drug-global-max-days").value,
       "每次最大申請量": document.getElementById("drug-global-max-qty").value,
       "啟用狀態": document.getElementById("drug-status").value,
