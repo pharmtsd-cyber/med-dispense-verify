@@ -13,13 +13,11 @@ function openDispenseForm() {
   document.getElementById("disp-pharmacist-id").value = user.id;
   document.getElementById("disp-pharmacist-name").value = user.name;
   
-  // 👉 修正這裡：尋找對應的單位 Radio 按鈕並設定為選取狀態
   if(user.unit) {
     const radio = document.querySelector(`input[name="disp-unit-radio"][value="${user.unit}"]`);
     if(radio) radio.checked = true;
   }
   
-  // 預設為調劑(綠色)
   document.getElementById("disp-type-disp").checked = true;
   document.getElementById("disp-type-disp").dispatchEvent(new Event('change', {bubbles: true}));
   
@@ -31,7 +29,6 @@ function openDispenseForm() {
   renderDispenseHistory(); 
 }
 
-// 監聽調劑/退藥 Radio 按鈕切換，動態改變顏色
 document.addEventListener("DOMContentLoaded", () => {
     document.querySelectorAll('input[name="disp-type"]').forEach(radio => {
         radio.addEventListener('change', (e) => {
@@ -70,7 +67,8 @@ function renderDispenseHistory(forcePid = null) {
   const startStr = document.getElementById("disp-hist-start").value.replace(/-/g, '/');
   const endStr = document.getElementById("disp-hist-end").value.replace(/-/g, '/');
   
-  let sortedLogs = [...State.dispenseLogs].sort((a,b) => new Date(b['調劑日期']+' '+(b['調劑時間']||'00:00:00')) - new Date(a['調劑日期']+' '+(a['調劑時間']||'00:00:00')));
+  // 👉 修復：排序過濾時間
+  let sortedLogs = [...State.dispenseLogs].sort((a,b) => new Date(formatAsDate(b['調劑日期'])+' '+(formatAsTime(b['調劑時間'])||'00:00:00')) - new Date(formatAsDate(a['調劑日期'])+' '+(formatAsTime(a['調劑時間'])||'00:00:00')));
   
   let html = "";
   sortedLogs.forEach((log) => {
@@ -86,8 +84,9 @@ function renderDispenseHistory(forcePid = null) {
       const qty = isDisp ? log['調劑數量'] : log['退藥數量'];
       const typeHtml = isDisp ? `<span class="badge bg-success">調劑</span>` : `<span class="badge bg-danger">退藥</span>`;
       
+      // 👉 修復：渲染時過濾時間
       html += `<tr>
-        <td>${logDateStr} ${log['調劑時間'] || ''}</td>
+        <td>${logDateStr} ${formatAsTime(log['調劑時間'])}</td>
         <td class="fw-bold text-primary">${logPid}</td>
         <td>${typeHtml}</td>
         <td class="fw-bold">${qty}</td>
@@ -109,7 +108,8 @@ function calculatePatientQuota(pid, drugCode) {
             
             if(!cycleMap[sDate] || qty > cycleMap[sDate]) cycleMap[sDate] = qty;
             
-            if(!latestApp || new Date(formatAsDate(a['申請日期'])+' '+(a['收單時間']||'00:00:00')) > new Date(formatAsDate(latestApp['申請日期'])+' '+(latestApp['收單時間']||'00:00:00'))) {
+            // 👉 修復：尋找最新依據時過濾時間
+            if(!latestApp || new Date(formatAsDate(a['申請日期'])+' '+(formatAsTime(a['收單時間'])||'00:00:00')) > new Date(formatAsDate(latestApp['申請日期'])+' '+(formatAsTime(latestApp['收單時間'])||'00:00:00'))) {
                 latestApp = a;
             }
         }
@@ -133,13 +133,15 @@ window.viewAppDetail = function(pid) {
   const { latestApp } = calculatePatientQuota(pid, State.currentSelectedDrugCode);
   const contentBox = document.getElementById("appDetailContent");
   if(latestApp) {
+    // 👉 修復：如果單號沒有，就代表是快取的資料，並正確顯示啟用日期
+    const appNo = latestApp['申請單號'] ? latestApp['申請單號'] : '剛成立單據(系統拋轉中)';
     contentBox.innerHTML = `
       <ul class="list-group">
-        <li class="list-group-item"><b>依據單號：</b><span class="text-danger fw-bold">${latestApp['申請單號'] || '剛成立單據(系統拋轉中)'}</span></li>
-        <li class="list-group-item"><b>收單時間：</b>${latestApp['申請日期']} ${latestApp['收單時間']||''}</li>
+        <li class="list-group-item"><b>依據單號：</b><span class="text-danger fw-bold">${appNo}</span></li>
+        <li class="list-group-item"><b>收單時間：</b>${formatAsDate(latestApp['申請日期'])} ${formatAsTime(latestApp['收單時間'])}</li>
         <li class="list-group-item"><b>病歷號：</b><span class="text-primary fw-bold">${latestApp['病歷號']}</span></li>
         <li class="list-group-item"><b>單據類別：</b><span class="badge bg-primary fs-6">${latestApp['申請類別']}</span></li>
-        <li class="list-group-item"><b>啟用日期：</b>${latestApp['啟用日期'] || '-'}</li>
+        <li class="list-group-item"><b>啟用日期：</b>${formatAsDate(latestApp['啟用日期']) || '-'}</li>
         <li class="list-group-item"><b>核准天數/數量：</b>${latestApp['申請天數']} 天 / <span class="fw-bold text-success">${latestApp['申請數量']} 支</span></li>
         <li class="list-group-item"><b>處理單位：</b>${latestApp['處理單位']}</li>
         <li class="list-group-item"><b>開單藥師：</b>${latestApp['藥師姓名']}</li>
@@ -154,7 +156,6 @@ window.viewAppDetail = function(pid) {
 async function processDispense(pid, qty, type, no, note) {
     if(!checkNetwork()) return false;
     
-    // 👉 修正這裡：抓取單選按鈕的單位
     const unitEl = document.querySelector('input[name="disp-unit-radio"]:checked');
     const processUnit = unitEl ? unitEl.value : "";
 
@@ -187,7 +188,6 @@ async function processDispense(pid, qty, type, no, note) {
 }
 
 async function runDispenseCheck(pid, qty, type, no, note) {
-    // 👉 修正這裡：驗證單位是否勾選
     const unitEl = document.querySelector('input[name="disp-unit-radio"]:checked');
     if(!unitEl || !document.getElementById("disp-pharmacist-id").value) {
        alert("請先確認「處理單位」與「作業藥師」已設定！"); return false;
