@@ -96,10 +96,9 @@ async function initApp(user) {
 
   document.getElementById("overview-content").innerHTML = '<div class="alert alert-info">正在載入系統巨量資料，請稍候...</div>';
   
-  // 👉 核心優化：原本 6 次請求合併為 1 次，突破醫院防火牆限制
-  const initData = await fetchData('getInitData');
+  // 👉 將天數參數傳給後端
+  const initData = await fetchData(`getInitData&days=${LOAD_HISTORY_DAYS}`);
   
-  // 萬一網路出錯回傳空值，給予空陣列防呆
   if (!initData || Object.keys(initData).length === 0) {
       alert("資料載入失敗，請檢查網路連線或重新整理頁面。");
       return;
@@ -141,8 +140,8 @@ async function forceSyncData() {
   if(!checkNetwork()) return;
   alert("開始與伺服器同步資料，請稍候...");
   
-  // 👉 優化：同步更新也打包成 1 次請求
-  const syncData = await fetchData('getSyncData');
+  // 👉 同步更新也加上天數參數
+  const syncData = await fetchData(`getSyncData&days=${LOAD_HISTORY_DAYS}`);
   if (syncData) {
       State.applications = syncData.applications || [];
       State.dispenseLogs = syncData.dispenseLogs || [];
