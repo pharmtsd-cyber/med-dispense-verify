@@ -151,7 +151,7 @@
         </div>
       </div>
 
-      <!-- 視圖 3: 填寫申請單 -->
+<!-- 視圖 3: 填寫申請單 -->
       <div id="view-application" class="view-section d-none-important">
         <button class="btn btn-sm btn-secondary mb-3" onclick="switchView('drug-dashboard')"><i class="bi bi-arrow-left"></i> 返回 <span id="app-back-drug-name"></span></button>
         <h3 class="mb-4 text-primary fw-bold">📝 填寫申請單 (<span id="app-form-drug-name" class="text-danger"></span>)</h3>
@@ -181,15 +181,22 @@
                 <label class="form-label fw-bold">病歷號</label>
                 <input type="text" id="app-patient-id" class="form-control text-uppercase" required autofocus placeholder="輸入後自動檢核">
               </div>
-              <div class="col-md-3">
-                <label class="form-label fw-bold">申請類別</label>
-                <select id="app-type" class="form-select border-primary" required disabled>
-                  <option value="">-- 請先輸入病歷號 --</option>
-                  <option value="初次申請" id="opt-initial">初次申請</option>
-                  <option value="展延申請" id="opt-extend">展延申請</option>
-                  <option value="複陽申請" id="opt-repositive">複陽申請</option>
-                </select>
+              
+              <!-- 👉 更新：下拉選單改為按鈕群組 -->
+              <div class="col-md-6">
+                <label class="form-label fw-bold mb-1 d-block">申請類別</label>
+                <div class="btn-group w-100 shadow-sm" role="group" id="app-type-group">
+                  <input type="radio" class="btn-check" name="app-type" id="opt-initial" value="初次申請" autocomplete="off" disabled>
+                  <label class="btn btn-outline-primary" for="opt-initial">初次申請</label>
+
+                  <input type="radio" class="btn-check" name="app-type" id="opt-extend" value="展延申請" autocomplete="off" disabled>
+                  <label class="btn btn-outline-primary" for="opt-extend">展延申請</label>
+
+                  <input type="radio" class="btn-check" name="app-type" id="opt-repositive" value="複陽申請" autocomplete="off" disabled>
+                  <label class="btn btn-outline-primary" for="opt-repositive">複陽申請</label>
+                </div>
               </div>
+              
               <div class="col-md-3">
                 <label class="form-label fw-bold">啟用日期</label>
                 <input type="date" id="app-start-date" class="form-control border-primary" required>
@@ -199,7 +206,6 @@
                 <div id="alert-msg" class="alert alert-warning mb-0"></div>
               </div>
               
-              <!-- 移除 readonly，加入最大值提示 -->
               <div class="col-md-3">
                 <label class="form-label fw-bold">申請天數 <span class="text-danger small" id="lbl-max-days"></span></label>
                 <input type="number" id="app-days" class="form-control" required min="1">
@@ -221,7 +227,6 @@
           </form>
         </div>
 
-        <!-- 申請單下方歷史紀錄 -->
         <div class="card shadow-sm border-0">
           <div class="card-header bg-white d-flex justify-content-between align-items-center">
             <h5 class="mb-0 fw-bold"><i class="bi bi-clock-history"></i> 本藥品歷史申請紀錄</h5>
@@ -269,30 +274,36 @@
                 <label class="form-label text-muted small fw-bold mb-1">處理單位</label>
                 <select id="disp-unit" class="form-select form-select-sm border-primary" required></select>
               </div>
-              <div class="col-md-3">
-                <label class="form-label text-danger small fw-bold mb-1">手動作業 (無條碼時)</label>
-                <div class="input-group input-group-sm">
-                    <select id="disp-type" class="form-select border-danger fw-bold">
-                        <option value="調劑">調劑</option>
-                        <option value="退藥">退藥</option>
-                    </select>
-                    <button class="btn btn-danger" type="button" onclick="manualDispenseModal()">手動輸入</button>
+              
+              <!-- 👉 更新：下拉選單改為調劑(綠)/退藥(紅)按鈕 -->
+              <div class="col-md-4">
+                <label class="form-label text-dark small fw-bold mb-1 d-block">作業類別</label>
+                <div class="btn-group w-100 shadow-sm" role="group">
+                  <input type="radio" class="btn-check" name="disp-type" id="disp-type-disp" value="調劑" autocomplete="off" checked>
+                  <label class="btn btn-outline-success fw-bold" for="disp-type-disp">調劑發藥</label>
+
+                  <input type="radio" class="btn-check" name="disp-type" id="disp-type-ret" value="退藥" autocomplete="off">
+                  <label class="btn btn-outline-danger fw-bold" for="disp-type-ret">退藥作業</label>
                 </div>
               </div>
+            </div>
+            <!-- 手動按鈕移至右下角 -->
+            <div class="text-end mt-2">
+              <button class="btn btn-sm btn-outline-secondary" type="button" onclick="manualDispenseModal()"><i class="bi bi-keyboard"></i> 無條碼手動輸入</button>
             </div>
           </div>
         </div>
 
-        <div class="card shadow-sm mb-4 border-danger">
-          <div class="card-body bg-danger bg-opacity-10">
-            <h5 class="text-danger fw-bold"><i class="bi bi-upc-scan"></i> 條碼掃描區 (刷入後即時檢核寫入)</h5>
-            <input type="text" id="barcode-input" class="form-control mt-2 border-danger form-control-lg text-uppercase" placeholder="確認上方設定無誤後，請刷入藥袋條碼..." autofocus>
+        <!-- 👉 掃描區：ID加上以便JS動態切換顏色 -->
+        <div class="card shadow-sm mb-4 border-success" id="disp-scan-card">
+          <div class="card-body bg-success bg-opacity-10" id="disp-scan-body">
+            <h5 class="text-success fw-bold" id="disp-scan-title"><i class="bi bi-upc-scan"></i> 條碼掃描區 (刷入後即時寫入)</h5>
+            <input type="text" id="barcode-input" class="form-control mt-2 border-success form-control-lg text-uppercase fw-bold text-center" placeholder="確認上方設定無誤後，請刷入藥袋條碼..." autofocus>
           </div>
         </div>
         
         <div id="disp-check-result" class="alert alert-info mt-2 mb-3 d-none-important"></div>
 
-        <!-- 調劑單下方歷史紀錄 -->
         <div class="card shadow-sm border-0 mt-4">
           <div class="card-header bg-white d-flex justify-content-between align-items-center">
             <h5 class="mb-0 fw-bold"><i class="bi bi-list-check"></i> 近期作業檢核清單</h5>
