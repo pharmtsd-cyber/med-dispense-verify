@@ -209,7 +209,7 @@
         </div>
       </div>
 
-      <!-- 視圖 5: 藥品主檔維護 (移除舊欄位) -->
+<!-- 視圖 5: 藥品主檔維護 (更新為全局限制模式) -->
       <div id="view-drug-manage" class="view-section d-none-important">
         <h3 class="mb-4 text-secondary fw-bold">⚙️ 藥品主檔維護</h3>
         <div class="row">
@@ -221,6 +221,12 @@
                 <div class="mb-2"><label class="form-label small fw-bold">藥品代碼 (唯一值)</label><input type="text" id="drug-code" class="form-control text-uppercase" required></div>
                 <div class="mb-2"><label class="form-label small fw-bold">藥品名稱</label><input type="text" id="drug-name" class="form-control" required></div>
                 <div class="mb-3"><label class="form-label small fw-bold">管制天數</label><input type="number" id="drug-control-days" class="form-control" value="14" required></div>
+                
+                <!-- 👉 新增：全局每次最大天數與數量 -->
+                <div class="row mb-3">
+                  <div class="col-6"><label class="form-label small fw-bold text-danger">每次最大申請天數</label><input type="number" id="drug-global-max-days" class="form-control border-danger" required></div>
+                  <div class="col-6"><label class="form-label small fw-bold text-danger">每次最大申請量</label><input type="number" id="drug-global-max-qty" class="form-control border-danger" required></div>
+                </div>
                 
                 <div class="mb-3 p-3 border rounded bg-white shadow-sm">
                   <label class="form-label small fw-bold text-primary"><i class="bi bi-tags"></i> 申請類別設定 (預設「初次申請」不可刪除)</label>
@@ -244,7 +250,7 @@
               <div class="table-responsive">
                 <table class="table table-hover align-middle text-center">
                   <thead class="table-light text-muted small">
-                    <tr><th>代碼</th><th>名稱</th><th>管制天數</th><th>狀態</th><th>操作</th></tr>
+                    <tr><th>代碼</th><th>名稱</th><th>管制</th><th>最大天/量</th><th>狀態</th><th>操作</th></tr>
                   </thead>
                   <tbody id="drug-table-body"></tbody>
                 </table>
