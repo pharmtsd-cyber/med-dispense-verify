@@ -171,7 +171,8 @@ async function processDispense(pid, qty, type, no, note) {
       "處理單位": processUnit,
       "備註": note || "",
       "調劑日期": formatAsDate(now),
-      "調劑時間": formatAsTime(now),
+      // 👉 修正重點：儲存時強制給予「完整日期 + 時間」
+      "調劑時間": formatAsDate(now) + " " + formatAsTime(now),
       "藥師員工編號": document.getElementById("disp-pharmacist-id").value,
       "藥師姓名": document.getElementById("disp-pharmacist-name").value
     };
