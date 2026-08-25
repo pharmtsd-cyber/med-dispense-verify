@@ -141,6 +141,27 @@ async function initApp(user) {
   
   populateUnitSelects();
   
+  // 👉 新增：自動過濾並產生主管下拉選單
+  const managerSelect = document.getElementById("app-manager");
+  if(managerSelect && State.employeeData) {
+      let mgrHtml = '<option value="">-- 請選擇簽核主管 --</option>';
+      State.employeeData.forEach(emp => {
+          let isManager = false;
+          // 自動偵測多種可能的主管標記
+          if (emp['主管權限'] === '是' || emp['主管'] === '是' || emp['N'] === '是' || emp['主管權限'] === 'Y') {
+              isManager = true;
+          } else {
+              Object.keys(emp).forEach(key => {
+                  if ((key.includes('主管') || key === 'N') && emp[key] === '是') isManager = true;
+              });
+          }
+          if (isManager && emp['姓名']) {
+              mgrHtml += `<option value="${emp['姓名']}">${emp['姓名']} (${emp['員工編號']})</option>`;
+          }
+      });
+      managerSelect.innerHTML = mgrHtml;
+  }
+
   if (typeof renderOverview === "function") renderOverview();
   if (typeof renderDrugManageTable === "function") renderDrugManageTable(); 
 }
