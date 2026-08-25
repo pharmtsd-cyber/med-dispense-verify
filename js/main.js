@@ -1,9 +1,18 @@
 // js/main.js 的最上方替換為：
 
 document.addEventListener("DOMContentLoaded", async () => {
+  
+  // 👉 新增：動態讀取 config.js 中的天數設定，並顯示在畫面上
+  const daysText = (typeof LOAD_HISTORY_DAYS !== 'undefined' && LOAD_HISTORY_DAYS > 0) ? LOAD_HISTORY_DAYS : "全部";
+  const displayEl = document.getElementById("history-days-display");
+  const overviewTitleEl = document.getElementById("overview-history-days");
+  
+  if(displayEl) displayEl.innerHTML = `<i class="bi bi-database-check"></i> 快取範圍: 近 ${daysText} 天`;
+  if(overviewTitleEl) overviewTitleEl.innerText = `(資料範圍: 近 ${daysText} 天)`;
+
+  // 底下維持原本的日期設定邏輯...
   const today = new Date();
   const priorDate = new Date(new Date().setDate(today.getDate() - 14));
-  // 調劑畫面預設近2天
   const priorDate2 = new Date(new Date().setDate(today.getDate() - 2));
   
   const todayStr = today.toISOString().split('T')[0];
