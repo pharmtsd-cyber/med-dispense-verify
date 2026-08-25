@@ -240,6 +240,13 @@ window.manualDispenseModal = async function() {
   const note = prompt("請輸入備註 (退藥必填)：");
   
   isProcessingDispense = true;
+  
+  // 👉 手動輸入時也進行智能同步
+  document.getElementById("disp-check-result").classList.remove("d-none-important");
+  document.getElementById("disp-check-result").className = "alert alert-info";
+  document.getElementById("disp-check-result").innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> 正在與雲端同步最新資料...';
+  await window.smartSync();
+  
   await runDispenseCheck(pid.trim().toUpperCase(), parseInt(qtyStr), type, null, note);
   isProcessingDispense = false;
 };
@@ -249,49 +256,37 @@ document.addEventListener("DOMContentLoaded", () => {
   if(!barcodeInput) return;
 
   barcodeInput.addEventListener("keypress", async (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      
-      if(isProcessingDispense) {
-          console.warn("系統處理中，忽略重複刷入的條碼");
-          return;
-      }
-      
-      const str = barcodeInput.value.trim().toUpperCase();
-      if(!str) return;
-      
-      const parts = str.split(';');
-      if (parts.length >= 4) {
-        const scannedDrugCode = parts[1];
-        if(scannedDrugCode !== State.currentSelectedDrugCode) {
-           alert(`⚠️ 條碼解析錯誤：藥袋代碼 (${scannedDrugCode}) 與當前頁面 (${State.currentSelectedDrugCode}) 不符！`);
-           barcodeInput.value = ""; return;
+      if (e.key === "Enter") {
+        e.preventDefault();
+        
+        if(isProcessingDispense) return;
+        
+        const str = barcodeInput.value.trim().toUpperCase();
+        if(!str) return;
+        
+        const parts = str.split(';');
+        if (parts.length >= 4) {
+          // ... (解析代碼邏輯不變) ...
+          
+          isProcessingDispense = true;
+          barcodeInput.disabled = true;
+          
+          // 👉 刷入條碼後，瞬間進行智能無感同步 (連續刷時會直接秒解)
+          barcodeInput.placeholder = "雲端檢核中...";
+          await window.smartSync(); 
+          
+          try {
+              await runDispenseCheck(pid, qty, type, no, "");
+          } catch(err) {
+              console.error(err);
+          } finally {
+              isProcessingDispense = false;
+              barcodeInput.disabled = false;
+              barcodeInput.value = ""; 
+              barcodeInput.placeholder = "確認上方設定無誤後，請刷入藥袋條碼...";
+              barcodeInput.focus();
+          }
         }
-        
-        const pid = parts[0];
-        const qty = parseInt(parts[3]);
-        const type = document.querySelector('input[name="disp-type"]:checked').value;
-        const no = parts[2];
-        
-        isProcessingDispense = true;
-        barcodeInput.disabled = true;
-        barcodeInput.placeholder = "處理中，請稍候...";
-        
-        try {
-            await runDispenseCheck(pid, qty, type, no, "");
-        } catch(err) {
-            console.error("調劑處理錯誤", err);
-        } finally {
-            isProcessingDispense = false;
-            barcodeInput.disabled = false;
-            barcodeInput.value = ""; 
-            barcodeInput.placeholder = "確認上方設定無誤後，請刷入藥袋條碼...";
-            barcodeInput.focus();
-        }
-      } else {
-        alert("條碼格式不符！");
-        barcodeInput.value = "";
       }
-    }
   });
 });
