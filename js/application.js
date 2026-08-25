@@ -10,7 +10,6 @@ function openApplicationForm() {
   document.getElementById("app-form-drug-name").innerText = `${drug['藥品名稱']} (${drug['藥品代碼']})`;
   document.getElementById("app-back-drug-name").innerText = drug['藥品名稱'];
   
-  // 👉 顯示藥品主檔資訊小卡片
   document.getElementById("app-drug-info-card").innerHTML = `
     <div class="row text-center">
       <div class="col-4 border-end"><div class="text-muted small">管制天數</div><div class="fw-bold fs-5 text-primary">${drug['管制天數']} 天</div></div>
@@ -25,7 +24,6 @@ function openApplicationForm() {
   document.getElementById("app-pharmacist-id").value = user.id;
   document.getElementById("app-pharmacist-name").value = user.name;
   
-  // 單位設定為預設
   if(user.unit) {
     const radio = document.querySelector(`input[name="app-unit-radio"][value="${user.unit}"]`);
     if(radio) radio.checked = true;
@@ -41,7 +39,38 @@ function openApplicationForm() {
   renderAppHistory(); 
 }
 
-// ... renderAppHistory 維持不變 ...
+function renderAppHistory() {
+  const tbody = document.getElementById("app-history-table");
+  if(!tbody) return;
+  const pidFilter = document.getElementById("app-hist-pid").value.trim().toUpperCase();
+  const startStr = document.getElementById("app-hist-start").value.replace(/-/g, '/');
+  const endStr = document.getElementById("app-hist-end").value.replace(/-/g, '/');
+  
+  let html = "";
+  // 👉 修復：排序時強制過濾時間
+  let sortedApps = [...State.applications].sort((a,b) => new Date(formatAsDate(b['申請日期'])+' '+(formatAsTime(b['收單時間'])||'00:00:00')) - new Date(formatAsDate(a['申請日期'])+' '+(formatAsTime(a['收單時間'])||'00:00:00')));
+  
+  sortedApps.forEach(app => {
+    if(String(app['藥品代碼']).toUpperCase() === State.currentSelectedDrugCode && app['作廢'] !== 'Y') {
+      const appPid = String(app['病歷號']).toUpperCase();
+      if(pidFilter && !appPid.includes(pidFilter)) return;
+      const appDateStr = formatAsDate(app['申請日期']);
+      if(startStr && appDateStr < startStr) return;
+      if(endStr && appDateStr > endStr) return;
+
+      // 👉 修復：顯示時強制過濾時間
+      html += `<tr>
+        <td>${appDateStr} ${formatAsTime(app['收單時間'])}</td>
+        <td>${formatAsDate(app['啟用日期']) || '-'}</td>
+        <td class="fw-bold text-primary">${appPid}</td>
+        <td><span class="badge bg-info text-dark">${app['申請類別']}</span></td>
+        <td class="fw-bold">${app['申請天數']} 天 / ${app['申請數量']} 支</td>
+        <td class="small text-muted">${app['處理單位']}</td>
+      </tr>`;
+    }
+  });
+  tbody.innerHTML = html || '<tr><td colspan="6" class="text-muted">查無符合紀錄</td></tr>';
+}
 
 document.addEventListener("DOMContentLoaded", () => {
   const inputAppPid = document.getElementById("app-patient-id");
@@ -52,7 +81,74 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if(!inputAppPid) return;
 
-  // ... inputAppPid blur 邏輯不變，只移除 lblMaxDays 那些行 ...
+  inputAppPid.addEventListener("blur", async () => {
+    const pid = inputAppPid.value.trim().toUpperCase();
+    inputAppPid.value = pid;
+    const drugCode = State.currentSelectedDrugCode;
+    const drug = State.activeDrugs.find(d => String(d['藥品代碼']).toUpperCase() === drugCode);
+    
+    if (pid && drugCode && drug) {
+      document.getElementById("app-hist-pid").value = pid; 
+      renderAppHistory();
+
+      radios.forEach(r => { r.disabled = true; r.checked = false; });
+      btnSubmitApp.disabled = true;
+
+      let latestApp = null;
+      const controlDays = parseInt(drug['管制天數'] || 14);
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - controlDays);
+
+      State.applications.forEach(app => {
+        if (String(app['病歷號']).toUpperCase() === pid && String(app['藥品代碼']).toUpperCase() === drugCode && app['作廢'] !== 'Y') {
+          const appDate = new Date(formatAsDate(app['申請日期']));
+          if (appDate >= cutoffDate) {
+            // 👉 修復：尋找最新申請單時過濾時間
+            if(!latestApp || new Date(formatAsDate(app['申請日期'])+' '+(formatAsTime(app['收單時間'])||'00:00:00')) > new Date(formatAsDate(latestApp['申請日期'])+' '+(formatAsTime(latestApp['收單時間'])||'00:00:00'))) {
+                latestApp = app;
+            }
+          }
+        }
+      });
+
+      lockedStartDate = "";
+      document.getElementById("app-start-date").readOnly = false;
+
+      let targetRadioId = "opt-initial"; 
+
+      if (!latestApp) {
+        document.getElementById("opt-initial").disabled = false;
+      } else {
+        const totalMaxQty = parseInt(drug['展延數量上限'] || 5);
+        const totalMaxDays = parseInt(drug['展延天數上限'] || 5);
+        
+        if (latestApp['申請類別'] === '初次申請') {
+            const initialQty = parseInt(latestApp['申請數量'] || 0);
+            const initialDays = parseInt(latestApp['申請天數'] || 0);
+            
+            if (initialQty >= totalMaxQty && initialDays >= totalMaxDays) {
+                targetRadioId = "opt-repositive";
+                document.getElementById("opt-repositive").disabled = false;
+                alert("此病患的初次申請已達最大額度，僅能進行「複陽申請」。");
+            } else {
+                targetRadioId = "opt-extend";
+                document.getElementById("opt-extend").disabled = false;
+                lockedStartDate = formatAsDate(latestApp['啟用日期'] || latestApp['申請日期']).replace(/\//g, '-');
+            }
+        } else {
+            targetRadioId = "opt-repositive";
+            document.getElementById("opt-repositive").disabled = false;
+            alert("此病患已展延過，僅能進行「複陽申請」。");
+        }
+      }
+      
+      const targetRadio = document.getElementById(targetRadioId);
+      if(targetRadio) {
+          targetRadio.checked = true;
+          targetRadio.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    }
+  });
 
   radios.forEach(radio => {
     radio.addEventListener("change", (e) => {
@@ -87,7 +183,6 @@ document.addEventListener("DOMContentLoaded", () => {
     e.preventDefault();
     if(!checkNetwork()) return;
     
-    // 👉 抓取單選的單位
     const unitEl = document.querySelector('input[name="app-unit-radio"]:checked');
     if(!unitEl) { alert("請選擇處理單位！"); return; }
     
@@ -118,7 +213,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const res = await postData("submitApplication", dataObj);
     if(res.status === 'success') {
       alert("申請單已成功送出！");
-      // 👉 修復：不寫死單號，如果後端有單號就會從伺服器覆蓋，前端先空著以防混淆
       dataObj['申請單號'] = ""; 
       State.applications.push(dataObj); 
       renderAppHistory(); 
