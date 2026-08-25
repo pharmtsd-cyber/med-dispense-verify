@@ -34,8 +34,14 @@ function openApplicationForm() {
     if(radio) radio.checked = true;
   }
   
-  document.getElementById("app-start-date").value = new Date().toISOString().split('T')[0];
-  document.getElementById("app-start-date").readOnly = false;
+  document.getElementById("app-start-date").value = "";
+  document.getElementById("app-start-date").readOnly = true;
+  document.getElementById("app-days").value = "";
+  document.getElementById("app-qty").value = "";
+  document.getElementById("app-days").readOnly = true;
+  document.getElementById("app-qty").readOnly = true;
+  document.getElementById("lbl-max-days").innerText = "";
+  document.getElementById("lbl-max-qty").innerText = "";
   
   let customCats = [];
   try { if (drug['自訂類別']) customCats = JSON.parse(drug['自訂類別']); } catch(e) {}
@@ -54,7 +60,7 @@ function openApplicationForm() {
      `;
   });
   document.getElementById("app-type-group").innerHTML = html;
-  document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-info-circle"></i> 尚未選擇類別';
+  document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-info-circle"></i> 請先輸入病歷號檢核';
   
   switchView('application');
   document.getElementById("app-patient-id").focus();
@@ -99,7 +105,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if(!inputAppPid) return;
 
-  // 👉 將檢核邏輯獨立成一個函數
   const runPidCheck = async () => {
     const pid = inputAppPid.value.trim().toUpperCase();
     inputAppPid.value = pid;
@@ -110,10 +115,21 @@ document.addEventListener("DOMContentLoaded", () => {
       document.getElementById("app-hist-pid").value = pid; 
       renderAppHistory();
 
+      // 👉 重置並清空所有選項，強迫藥師自己點選
       const radios = document.querySelectorAll('input[name="app-type"]');
       radios.forEach(r => { r.disabled = true; r.checked = false; });
-      document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-info-circle"></i> 尚未選擇類別';
+      document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-info-circle text-danger"></i> 檢核完成，請點選上方亮起的「申請類別」';
       btnSubmitApp.disabled = true;
+
+      // 👉 鎖定並清空天數與數量，直到使用者選擇類別
+      inputAppDays.value = "";
+      inputAppQty.value = "";
+      inputAppDays.readOnly = true;
+      inputAppQty.readOnly = true;
+      document.getElementById("lbl-max-days").innerText = "";
+      document.getElementById("lbl-max-qty").innerText = "";
+      document.getElementById("app-start-date").value = "";
+      document.getElementById("app-start-date").readOnly = true;
 
       const controlDays = parseInt(drug['管制天數'] || 14);
       const cutoffDate = new Date();
@@ -139,14 +155,11 @@ document.addEventListener("DOMContentLoaded", () => {
       });
 
       lockedStartDateStr = "";
-      document.getElementById("app-start-date").readOnly = false;
-      let targetRadioId = null;
 
       if (!latestApp) {
         radios.forEach(r => {
             if (r.getAttribute("data-cat-type") === "INITIAL") {
                 r.disabled = false;
-                if(!targetRadioId) targetRadioId = r.id; 
             }
         });
       } else {
@@ -169,13 +182,11 @@ document.addEventListener("DOMContentLoaded", () => {
             const catType = r.getAttribute("data-cat-type");
             if (catType === "BREAK") {
                 r.disabled = false;
-                if(!targetRadioId) targetRadioId = r.id;
             } else if (catType === "EXTENSION") {
                 if (isMaxedOut || hasUsedExtension) {
                     r.disabled = true;
                 } else {
                     r.disabled = false;
-                    if(!targetRadioId) targetRadioId = r.id;
                 }
             } else {
                 r.disabled = true;
@@ -186,23 +197,13 @@ document.addEventListener("DOMContentLoaded", () => {
             alert(`此病患本次療程已達全局額度，或已申請過展延。\n僅能選擇「🔴 突破限制」之類別建立新療程。`);
         }
       }
-      
-      if(targetRadioId) {
-          const targetRadio = document.getElementById(targetRadioId);
-          if(targetRadio && !targetRadio.disabled) {
-              targetRadio.checked = true;
-              document.getElementById("app-type-group").dispatchEvent(new Event('change', { bubbles: true }));
-          }
-      }
     }
   };
 
-  // 👉 綁定兩種事件：離開欄位(blur) 或 按下Enter鍵(keypress)
   inputAppPid.addEventListener("blur", runPidCheck);
-  
   inputAppPid.addEventListener("keypress", (e) => {
     if (e.key === "Enter") {
-      e.preventDefault(); // 阻擋 Enter 鍵意外送出表單
+      e.preventDefault(); 
       runPidCheck();
     }
   });
@@ -304,8 +305,20 @@ document.addEventListener("DOMContentLoaded", () => {
       dataObj['申請單號'] = ""; 
       State.applications.push(dataObj); 
       renderAppHistory(); 
+      
+      // 送出成功後，重置表單並將畫面還原至鎖定狀態
       document.getElementById("app-form").reset();
       document.querySelectorAll('input[name="app-type"]').forEach(r => { r.disabled = true; r.checked = false; });
+      document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-info-circle"></i> 請先輸入病歷號檢核';
+      document.getElementById("app-start-date").value = "";
+      document.getElementById("app-start-date").readOnly = true;
+      document.getElementById("app-days").value = "";
+      document.getElementById("app-qty").value = "";
+      document.getElementById("app-days").readOnly = true;
+      document.getElementById("app-qty").readOnly = true;
+      document.getElementById("lbl-max-days").innerText = "";
+      document.getElementById("lbl-max-qty").innerText = "";
+      
       btnSubmitApp.disabled = true;
       btnSubmitApp.innerText = "確認送出申請";
     } else {
