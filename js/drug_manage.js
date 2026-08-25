@@ -2,24 +2,48 @@
 
 let currentCustomCategories = [];
 
-// 👉 渲染自訂類別編輯區塊
+// 👉 渲染自訂類別編輯區塊 (加入獨立的天數與數量設定)
 window.renderCustomCategories = function() {
     const container = document.getElementById("custom-categories-container");
     if (!container) return;
     container.innerHTML = "";
     currentCustomCategories.forEach((cat, idx) => {
         container.innerHTML += `
-            <div class="d-flex gap-2 mb-2">
-                <input type="text" class="form-control form-control-sm border-primary" placeholder="選項文字 (例: 預防性投藥)" value="${cat.name}" onchange="currentCustomCategories[${idx}].name = this.value">
-                <input type="text" class="form-control form-control-sm border-info" placeholder="描述文字 (例: 手術前使用...)" value="${cat.desc}" onchange="currentCustomCategories[${idx}].desc = this.value">
-                <button type="button" class="btn btn-sm btn-danger" onclick="removeCustomCategory(${idx})"><i class="bi bi-trash"></i></button>
+            <div class="border rounded p-2 mb-2 bg-light position-relative shadow-sm">
+                <button type="button" class="btn btn-sm btn-danger position-absolute top-0 end-0 m-1" onclick="removeCustomCategory(${idx})"><i class="bi bi-x"></i></button>
+                <div class="row g-2 me-4">
+                    <div class="col-md-5">
+                        <label class="small text-muted fw-bold mb-0">選項文字</label>
+                        <input type="text" class="form-control form-control-sm border-primary" placeholder="例: 預防性投藥" value="${cat.name || ''}" onchange="currentCustomCategories[${idx}].name = this.value">
+                    </div>
+                    <div class="col-md-7">
+                        <label class="small text-muted fw-bold mb-0">選項描述</label>
+                        <input type="text" class="form-control form-control-sm border-info" placeholder="例: 手術前使用..." value="${cat.desc || ''}" onchange="currentCustomCategories[${idx}].desc = this.value">
+                    </div>
+                    <div class="col-3">
+                        <label class="small text-muted mb-0">預設天數</label>
+                        <input type="number" class="form-control form-control-sm" value="${cat.defDays || 3}" onchange="currentCustomCategories[${idx}].defDays = this.value">
+                    </div>
+                    <div class="col-3">
+                        <label class="small text-muted mb-0">預設數量</label>
+                        <input type="number" class="form-control form-control-sm" value="${cat.defQty || 3}" onchange="currentCustomCategories[${idx}].defQty = this.value">
+                    </div>
+                    <div class="col-3">
+                        <label class="small text-muted mb-0 text-danger">天數上限</label>
+                        <input type="number" class="form-control form-control-sm border-danger" value="${cat.maxDays || 5}" onchange="currentCustomCategories[${idx}].maxDays = this.value">
+                    </div>
+                    <div class="col-3">
+                        <label class="small text-muted mb-0 text-danger">數量上限</label>
+                        <input type="number" class="form-control form-control-sm border-danger" value="${cat.maxQty || 5}" onchange="currentCustomCategories[${idx}].maxQty = this.value">
+                    </div>
+                </div>
             </div>
         `;
     });
 };
 
 window.addCustomCategory = function() {
-    currentCustomCategories.push({name: "", desc: ""});
+    currentCustomCategories.push({name: "", desc: "", defDays: 3, defQty: 3, maxDays: 5, maxQty: 5});
     renderCustomCategories();
 };
 
@@ -69,7 +93,6 @@ function renderDrugManageTable() {
         document.getElementById("drug-status").value = String(drug['啟用狀態']).toUpperCase() || 'Y';
         document.getElementById("drug-code").setAttribute("readonly", true);
         
-        // 👉 載入該藥品的自訂類別
         try {
             currentCustomCategories = drug['自訂類別'] ? JSON.parse(drug['自訂類別']) : [];
         } catch(e) { currentCustomCategories = []; }
@@ -89,7 +112,6 @@ document.addEventListener("DOMContentLoaded", () => {
     btnSave.disabled = true;
     btnSave.innerText = "儲存中...";
     
-    // 過濾掉空白的自訂類別
     const validCats = currentCustomCategories.filter(c => c.name.trim() !== "");
 
     const dataObj = {
@@ -101,7 +123,6 @@ document.addEventListener("DOMContentLoaded", () => {
       "展延天數上限": document.getElementById("drug-max-ext-days").value,
       "展延數量上限": document.getElementById("drug-max-ext-qty").value,
       "啟用狀態": document.getElementById("drug-status").value,
-      // 👉 轉為 JSON 字串存入 Google Sheets
       "自訂類別": JSON.stringify(validCats)
     };
 
