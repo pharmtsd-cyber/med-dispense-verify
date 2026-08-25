@@ -10,14 +10,6 @@ function openApplicationForm() {
   document.getElementById("app-form-drug-name").innerText = `${drug['藥品名稱']} (${drug['藥品代碼']})`;
   document.getElementById("app-back-drug-name").innerText = drug['藥品名稱'];
   
-  document.getElementById("app-drug-info-card").innerHTML = `
-    <div class="row text-center">
-      <div class="col-4 border-end"><div class="text-muted small">管制天數</div><div class="fw-bold fs-5 text-primary">${drug['管制天數']} 天</div></div>
-      <div class="col-4 border-end"><div class="text-muted small">初次申請預設</div><div class="fw-bold fs-5">${drug['預設申請天數']} 天 / ${drug['預設申請數量']} 支</div></div>
-      <div class="col-4"><div class="text-muted small">展延申請上限</div><div class="fw-bold fs-5">${drug['展延天數上限']} 天 / ${drug['展延數量上限']} 支</div></div>
-    </div>
-  `;
-
   const form = document.getElementById("app-form");
   if(form) form.reset();
   
@@ -35,16 +27,12 @@ function openApplicationForm() {
   let customCats = [];
   try { if (drug['自訂類別']) customCats = JSON.parse(drug['自訂類別']); } catch(e) {}
   
-  let html = `
-    <input type="radio" class="btn-check" name="app-type" id="opt-initial" value="初次申請" autocomplete="off" disabled data-desc="系統預設：初次申請或管制期外重新申請">
-    <label class="btn btn-outline-primary" for="opt-initial">初次申請</label>
-    <input type="radio" class="btn-check" name="app-type" id="opt-extend" value="展延申請" autocomplete="off" disabled data-desc="系統預設：接續前次申請延長額度">
-    <label class="btn btn-outline-primary" for="opt-extend">展延申請</label>
-    <input type="radio" class="btn-check" name="app-type" id="opt-repositive" value="複陽申請" autocomplete="off" disabled data-desc="系統預設：超過展延上限，需主管簽核放行">
-    <label class="btn btn-outline-primary" for="opt-repositive">複陽申請</label>
-  `;
+  // 防呆：確保一定有初次申請
+  if(customCats.length === 0 || customCats[0].name !== '初次申請') {
+      customCats = [{name: '初次申請', desc: '系統預設', defDays: 3, defQty: 3, maxDays: 5, maxQty: 5}];
+  }
   
-  // 👉 將獨立限制埋入 HTML data 屬性中
+  let html = '';
   customCats.forEach((c, idx) => {
      html += `
        <input type="radio" class="btn-check" name="app-type" id="opt-custom-${idx}" value="${c.name}" autocomplete="off" disabled 
@@ -52,9 +40,16 @@ function openApplicationForm() {
        <label class="btn btn-outline-primary" for="opt-custom-${idx}">${c.name}</label>
      `;
   });
-  
   document.getElementById("app-type-group").innerHTML = html;
   document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-info-circle"></i> 尚未選擇類別';
+  
+  // 👉 更新小卡：動態顯示所有設定好的類別與其上限
+  let infoHtml = `<div class="d-flex justify-content-between align-items-center mb-2"><span class="fw-bold text-primary"><i class="bi bi-shield-check"></i> 藥品管制天數：${drug['管制天數']} 天</span></div><div class="d-flex flex-wrap gap-2">`;
+  customCats.forEach(c => {
+       infoHtml += `<span class="badge bg-white text-dark border shadow-sm">${c.name} (預設:${c.defQty} / 上限:${c.maxQty})</span>`;
+  });
+  infoHtml += `</div>`;
+  document.getElementById("app-drug-info-card").innerHTML = infoHtml;
   
   switchView('application');
   document.getElementById("app-patient-id").focus();
@@ -135,104 +130,96 @@ document.addEventListener("DOMContentLoaded", () => {
 
       lockedStartDate = "";
       document.getElementById("app-start-date").readOnly = false;
-      let targetRadioId = "opt-initial"; 
+      
+      let targetRadioId = "opt-custom-0"; // 預設指向第一個(初次申請)
 
       if (!latestApp) {
-        document.getElementById("opt-initial").disabled = false;
+        // 👉 防呆：完全沒紀錄，強制只能點選初次申請
+        document.getElementById("opt-custom-0").disabled = false;
       } else {
-        const totalMaxQty = parseInt(drug['展延數量上限'] || 5);
-        const totalMaxDays = parseInt(drug['展延天數上限'] || 5);
+        // 有紀錄：禁用初次申請，並開啟其他選項
+        document.getElementById("opt-custom-0").disabled = true;
+        radios.forEach((r, idx) => { if(idx > 0) r.disabled = false; });
         
+        let extRadio = Array.from(radios).find(r => r.value.includes("展延"));
+        let repRadio = Array.from(radios).find(r => r.value.includes("複陽"));
+
         if (latestApp['申請類別'] === '初次申請') {
-            const initialQty = parseInt(latestApp['申請數量'] || 0);
-            const initialDays = parseInt(latestApp['申請天數'] || 0);
-            
-            if (initialQty >= totalMaxQty && initialDays >= totalMaxDays) {
-                targetRadioId = "opt-repositive";
-                document.getElementById("opt-repositive").disabled = false;
-                alert("此病患的初次申請已達最大額度，僅能進行「複陽申請」。");
+            if (extRadio) {
+                const extMaxQty = parseInt(extRadio.getAttribute("data-max-qty") || 5);
+                const extMaxDays = parseInt(extRadio.getAttribute("data-max-days") || 5);
+                const initialQty = parseInt(latestApp['申請數量'] || 0);
+                const initialDays = parseInt(latestApp['申請天數'] || 0);
+                
+                if (initialQty >= extMaxQty && initialDays >= extMaxDays) {
+                    extRadio.disabled = true;
+                    alert("此病患的初次申請已達該藥品最大額度，無法再展延。");
+                    
+                    if(repRadio) {
+                        targetRadioId = repRadio.id;
+                    } else {
+                        const firstAvail = Array.from(radios).find(r => !r.disabled);
+                        if(firstAvail) targetRadioId = firstAvail.id;
+                    }
+                } else {
+                    targetRadioId = extRadio.id;
+                    lockedStartDate = formatAsDate(latestApp['啟用日期'] || latestApp['申請日期']).replace(/\//g, '-');
+                }
             } else {
-                targetRadioId = "opt-extend";
-                document.getElementById("opt-extend").disabled = false;
-                lockedStartDate = formatAsDate(latestApp['啟用日期'] || latestApp['申請日期']).replace(/\//g, '-');
+                const firstAvail = Array.from(radios).find(r => !r.disabled);
+                if(firstAvail) targetRadioId = firstAvail.id;
             }
         } else {
-            targetRadioId = "opt-repositive";
-            document.getElementById("opt-repositive").disabled = false;
-            alert("此病患已展延過，僅能進行「複陽申請」。");
+            // 前次已經是展延或複陽，再次阻擋展延
+            if (extRadio) extRadio.disabled = true;
+            if(repRadio) {
+                targetRadioId = repRadio.id;
+            } else {
+                const firstAvail = Array.from(radios).find(r => !r.disabled);
+                if(firstAvail) targetRadioId = firstAvail.id;
+            }
         }
       }
       
-      // 解鎖自訂類別 (不論管制狀態為何，自訂類別都允許選取)
-      radios.forEach(r => { if(r.id.includes("custom")) r.disabled = false; });
-      
       const targetRadio = document.getElementById(targetRadioId);
-      if(targetRadio) {
+      if(targetRadio && !targetRadio.disabled) {
           targetRadio.checked = true;
           document.getElementById("app-type-group").dispatchEvent(new Event('change', { bubbles: true }));
       }
     }
   });
 
-  // 👉 切換按鈕時，動態套用個別選項的限制
   document.getElementById("app-type-group").addEventListener("change", (e) => {
     if(e.target.name === "app-type") {
       const type = e.target.value;
       const desc = e.target.getAttribute("data-desc");
-      document.getElementById("app-type-desc").innerHTML = `<i class="bi bi-info-circle"></i> 說明：${desc}`;
+      const cDefDays = parseInt(e.target.getAttribute("data-def-days") || 3);
+      const cDefQty = parseInt(e.target.getAttribute("data-def-qty") || 3);
+      const cMaxDays = parseInt(e.target.getAttribute("data-max-days") || 5);
+      const cMaxQty = parseInt(e.target.getAttribute("data-max-qty") || 5);
       
-      const drug = State.activeDrugs.find(d => String(d['藥品代碼']).toUpperCase() === State.currentSelectedDrugCode);
+      document.getElementById("app-type-desc").innerHTML = `<i class="bi bi-info-circle"></i> 說明：${desc}`;
       btnSubmitApp.disabled = false;
       
-      document.getElementById("manager-input-group").style.display = (type === "複陽申請") ? "block" : "none";
-      document.getElementById("app-manager").required = (type === "複陽申請");
+      const needsManager = (type.includes("複陽") || type.includes("主管"));
+      document.getElementById("manager-input-group").style.display = needsManager ? "block" : "none";
+      document.getElementById("app-manager").required = needsManager;
 
       inputAppDays.readOnly = false;
       inputAppQty.readOnly = false;
-
-      if (type === "展延申請") {
-        const maxD = parseInt(drug['展延天數上限'] || 5);
-        const maxQ = parseInt(drug['展延數量上限'] || 5);
-        inputAppDays.value = maxD;
-        inputAppQty.value = maxQ;
-        inputAppDays.max = maxD;
-        inputAppQty.max = maxQ;
-        lblMaxDays.innerText = `(上限 ${maxD})`;
-        lblMaxQty.innerText = `(上限 ${maxQ})`;
-        
-        if(lockedStartDate) {
-            document.getElementById("app-start-date").value = lockedStartDate;
-            document.getElementById("app-start-date").readOnly = true;
-        }
-      } else if (type === "初次申請" || type === "複陽申請") {
-        // 系統預設類別套用公規
-        const maxD = parseInt(drug['預設申請天數'] || 3);
-        const maxQ = parseInt(drug['預設申請數量'] || 3);
-        inputAppDays.value = maxD;
-        inputAppQty.value = maxQ;
-        inputAppDays.max = maxD;
-        inputAppQty.max = maxQ;
-        lblMaxDays.innerText = `(上限 ${maxD})`;
-        lblMaxQty.innerText = `(上限 ${maxQ})`;
-        
-        document.getElementById("app-start-date").readOnly = false;
-        document.getElementById("app-start-date").value = new Date().toISOString().split('T')[0];
+      inputAppDays.value = cDefDays;
+      inputAppQty.value = cDefQty;
+      inputAppDays.max = cMaxDays;
+      inputAppQty.max = cMaxQty;
+      lblMaxDays.innerText = `(上限 ${cMaxDays})`;
+      lblMaxQty.innerText = `(上限 ${cMaxQty})`;
+      
+      if (type.includes("展延") && lockedStartDate) {
+          document.getElementById("app-start-date").value = lockedStartDate;
+          document.getElementById("app-start-date").readOnly = true;
       } else {
-        // 👉 自訂類別套用私規
-        const cDefDays = parseInt(e.target.getAttribute("data-def-days") || 3);
-        const cDefQty = parseInt(e.target.getAttribute("data-def-qty") || 3);
-        const cMaxDays = parseInt(e.target.getAttribute("data-max-days") || 5);
-        const cMaxQty = parseInt(e.target.getAttribute("data-max-qty") || 5);
-
-        inputAppDays.value = cDefDays;
-        inputAppQty.value = cDefQty;
-        inputAppDays.max = cMaxDays;
-        inputAppQty.max = cMaxQty;
-        lblMaxDays.innerText = `(專屬上限 ${cMaxDays})`;
-        lblMaxQty.innerText = `(專屬上限 ${cMaxQty})`;
-        
-        document.getElementById("app-start-date").readOnly = false;
-        document.getElementById("app-start-date").value = new Date().toISOString().split('T')[0];
+          document.getElementById("app-start-date").readOnly = false;
+          document.getElementById("app-start-date").value = new Date().toISOString().split('T')[0];
       }
     }
   });
@@ -241,7 +228,6 @@ document.addEventListener("DOMContentLoaded", () => {
     e.preventDefault();
     if(!checkNetwork()) return;
     
-    // 送出前的終極防呆：再次檢核不能超過該選項設定的 max 值
     if(parseInt(inputAppDays.value) > parseInt(inputAppDays.max) || parseInt(inputAppQty.value) > parseInt(inputAppQty.max)) {
         alert(`申請天數或數量不可超過設定上限！\n最大天數: ${inputAppDays.max}\n最大數量: ${inputAppQty.max}`); 
         return;
