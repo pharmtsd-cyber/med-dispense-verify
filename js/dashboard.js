@@ -51,7 +51,6 @@ function renderOverview() {
               <div class="text-muted small">退回數量</div><h3 class="text-danger mt-1">${totalReturned} 支</h3>
             </div>
           </div>
-          <!-- 👉 重點：加上 data-chart-code 標記，方便替換 ID -->
           <div style="height: 350px; width: 100%;"><canvas id="chart-overview-${code}" data-chart-code="${code}"></canvas></div>
         </div>
       </div>
@@ -64,7 +63,6 @@ function renderOverview() {
   }, 100);
 }
 
-// 👉 全新綜合圖表產生器
 function drawMixedChart(code, prefix) {
   const canvasId = `chart-${prefix}-${code}`;
   const ctx = document.getElementById(canvasId);
@@ -72,11 +70,9 @@ function drawMixedChart(code, prefix) {
 
   if (State.chartInstances[canvasId]) { State.chartInstances[canvasId].destroy(); }
 
-  // 1. 抓取日期範圍
   const startStr = document.getElementById(`${prefix === 'overview' ? 'overview' : 'single-drug'}-date-start`).value.replace(/-/g, '/');
   const endStr = document.getElementById(`${prefix === 'overview' ? 'overview' : 'single-drug'}-date-end`).value.replace(/-/g, '/');
   
-  // 2. 準備日期標籤
   let labels = [];
   let curr = new Date(startStr);
   const end = new Date(endStr);
@@ -85,7 +81,6 @@ function drawMixedChart(code, prefix) {
       curr.setDate(curr.getDate() + 1);
   }
 
-  // 3. 計算每一天的數據
   let dataApp = [], dataDisp = [], dataRet = [], dataActual = [], dataPat = [];
   
   labels.forEach(dateLabel => {
@@ -110,13 +105,12 @@ function drawMixedChart(code, prefix) {
       dataApp.push(dApp);
       dataDisp.push(dDisp);
       dataRet.push(dRet);
-      dataActual.push(dDisp - dRet); // 實際用量 = 調劑 - 退藥
-      dataPat.push(patSet.size); // 每日作業人數
+      dataActual.push(dDisp - dRet); 
+      dataPat.push(patSet.size); 
   });
 
-  // 4. 繪製 Chart.js
   State.chartInstances[canvasId] = new Chart(ctx, {
-    type: 'bar', // 主體用長條圖，部分數據設為折線
+    type: 'bar', 
     data: {
       labels: labels,
       datasets: [
@@ -132,12 +126,7 @@ function drawMixedChart(code, prefix) {
       plugins: { legend: { position: 'top' }, tooltip: { mode: 'index', intersect: false } },
       scales: {
         y: { type: 'linear', position: 'left', title: { display: true, text: '數量 (支)' } },
-        y1: { 
-          type: 'linear', position: 'right', 
-          title: { display: true, text: '人數' }, 
-          grid: { drawOnChartArea: false },
-          ticks: { stepSize: 1, precision: 0 } // 👉 強制人數必須是整數
-        }
+        y1: { type: 'linear', position: 'right', title: { display: true, text: '人數' }, grid: { drawOnChartArea: false }, ticks: { stepSize: 1, precision: 0 } }
       }
     }
   });
@@ -166,7 +155,6 @@ function refreshSingleDrugDashboard() {
   setTimeout(() => {
     const cardContent = document.getElementById(`overview-card-${code}`);
     if(cardContent && statsContainer) {
-       // 👉 解決 ID 衝突：將 overview 的 canvas ID 替換為 single 的 canvas ID
        let newHtml = cardContent.innerHTML.replace(`id="chart-overview-${code}"`, `id="chart-single-${code}"`);
        statsContainer.innerHTML = newHtml;
        drawMixedChart(code, 'single');
@@ -174,7 +162,6 @@ function refreshSingleDrugDashboard() {
     document.getElementById("overview-drug-filter").value = "ALL";
   }, 150);
 
-  // 渲染歷史清單邏輯 (維持不變)
   const tableContainer = document.getElementById("single-drug-records-table");
   if(!tableContainer) return;
   
@@ -187,7 +174,8 @@ function refreshSingleDrugDashboard() {
         const dt = formatAsDate(app['申請日期']);
         if(startDate && dt < startDate) return;
         if(endDate && dt > endDate) return;
-        records.push({ type: 'APP', date: dt, time: app['收單時間'] || '00:00:00', data: app });
+        // 👉 修復 1899 時間臭蟲
+        records.push({ type: 'APP', date: dt, time: formatAsTime(app['收單時間']) || '00:00:00', data: app });
       }
     });
   }
@@ -200,7 +188,8 @@ function refreshSingleDrugDashboard() {
         const dt = formatAsDate(log['調劑日期']);
         if(startDate && dt < startDate) return;
         if(endDate && dt > endDate) return;
-        records.push({ type: 'DIS', date: dt, time: log['調劑時間'] || '00:00:00', data: log });
+        // 👉 修復 1899 時間臭蟲
+        records.push({ type: 'DIS', date: dt, time: formatAsTime(log['調劑時間']) || '00:00:00', data: log });
       }
     });
   }
