@@ -95,10 +95,11 @@ async function initApp(user) {
   document.getElementById("app-container").classList.remove("d-none-important");
   document.getElementById("user-info").innerText = `${user.name} (${user.unit || '無單位'})`;
 
-  // 系統啟動時，將所有資料庫快取到前端
   document.getElementById("overview-content").innerHTML = '<div class="alert alert-info">正在載入系統巨量資料，請稍候...</div>';
   
+  // 👉 新增：開機時一併載入所有藥品(allDrugs)，讓主檔維護頁面達到秒開
   State.employeeData = await fetchData('getEmployeeData');
+  State.allDrugs = await fetchData('getAllDrugs'); 
   State.activeDrugs = await fetchData('getActiveDrugs');
   State.unitData = await fetchData('getUnits');
   State.applications = await fetchData('getApplications');
@@ -124,14 +125,19 @@ async function initApp(user) {
   }
   
   populateUnitSelects();
+  
+  // 👉 系統初始化時，同步把圖表跟主檔維護表格畫好
   if (typeof renderOverview === "function") renderOverview();
+  if (typeof renderDrugManageTable === "function") renderDrugManageTable(); 
 }
 
 async function forceSyncData() {
   if(!checkNetwork()) return;
   alert("開始與伺服器同步資料，請稍候...");
+  
   State.applications = await fetchData('getApplications');
   State.dispenseLogs = await fetchData('getDispenseLogs');
+  State.allDrugs = await fetchData('getAllDrugs');
   
   if (State.currentSelectedDrugCode) {
     refreshSingleDrugDashboard();
@@ -139,13 +145,14 @@ async function forceSyncData() {
   } else {
     renderOverview();
   }
+  
+  if (typeof renderDrugManageTable === "function") renderDrugManageTable();
   alert("資料同步完成！");
 }
 
 function populateUnitSelects() {
   const appUnitGrp = document.getElementById("app-unit-group");
   const dispUnitGrp = document.getElementById("disp-unit-group");
-  
   if(State.unitData.length > 0) {
     let html = '';
     State.unitData.forEach((u, idx) => {
@@ -157,7 +164,6 @@ function populateUnitSelects() {
       }
     });
     if(appUnitGrp) appUnitGrp.innerHTML = html;
-    
     let dispHtml = '';
     State.unitData.forEach((u, idx) => {
       if(u['單位名稱']) {
@@ -175,7 +181,6 @@ function switchView(viewId, element = null) {
   document.querySelectorAll(".view-section").forEach(el => el.classList.add("d-none-important"));
   const viewEl = document.getElementById(`view-${viewId}`);
   if(viewEl) viewEl.classList.remove("d-none-important");
-  
   if (element) {
     document.querySelectorAll('.sidebar .nav-link').forEach(el => el.classList.remove('active'));
     element.classList.add('active');
@@ -186,25 +191,17 @@ function switchView(viewId, element = null) {
 function enablePharmacistChange(prefix) {
   const inputId = document.getElementById(`${prefix}-pharmacist-id`);
   const inputName = document.getElementById(`${prefix}-pharmacist-name`);
-  
   inputId.readOnly = false;
   inputId.classList.remove("bg-light");
   inputId.value = "";
   inputName.value = "";
   inputId.focus();
-  
-  // 移除可能存在的舊 Listener 避免重複觸發
-  if (inputId._phHandler) {
-    inputId.removeEventListener('keypress', inputId._phHandler);
-  }
-  
-  // 綁定 Keypress 事件 (尋找 Enter)
+  if (inputId._phHandler) inputId.removeEventListener('keypress', inputId._phHandler);
   inputId._phHandler = function(e) {
     if (e.key === 'Enter') {
-      e.preventDefault(); // 阻擋表單送出
-      const val = inputId.value.trim().toUpperCase(); // 轉大寫
+      e.preventDefault(); 
+      const val = inputId.value.trim().toUpperCase(); 
       if(val === "") return; 
-      
       const emp = State.employeeData.find(e => String(e['員工編號']).toUpperCase() === val);
       if(emp) {
         inputName.value = emp['姓名'];
@@ -217,6 +214,5 @@ function enablePharmacistChange(prefix) {
       }
     }
   };
-  
   inputId.addEventListener('keypress', inputId._phHandler);
 }
