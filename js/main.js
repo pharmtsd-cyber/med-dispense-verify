@@ -105,8 +105,7 @@ async function initApp(user) {
 
   document.getElementById("overview-content").innerHTML = '<div class="alert alert-info">正在載入系統巨量資料，請稍候...</div>';
   
-  // 👉 將天數參數傳給後端
-  const initData = await fetchData(`getInitData&days=${LOAD_HISTORY_DAYS}`);
+  const initData = await fetchData(`getInitData&days=${typeof LOAD_HISTORY_DAYS !== 'undefined' ? LOAD_HISTORY_DAYS : 0}`);
   
   if (!initData || Object.keys(initData).length === 0) {
       alert("資料載入失敗，請檢查網路連線或重新整理頁面。");
@@ -141,18 +140,18 @@ async function initApp(user) {
   
   populateUnitSelects();
   
-  // 👉 新增：自動過濾並產生主管下拉選單
+  // 👉 修正：精準對應「空白欄位五」作為主管權限判斷
   const managerSelect = document.getElementById("app-manager");
   if(managerSelect && State.employeeData) {
       let mgrHtml = '<option value="">-- 請選擇簽核主管 --</option>';
       State.employeeData.forEach(emp => {
           let isManager = false;
-          // 自動偵測多種可能的主管標記
-          if (emp['主管權限'] === '是' || emp['主管'] === '是' || emp['N'] === '是' || emp['主管權限'] === 'Y') {
+          // 直接鎖定「空白欄位五」是否為「是」
+          if (emp['空白欄位五'] === '是' || emp['主管權限'] === '是' || emp['主管'] === '是') {
               isManager = true;
           } else {
               Object.keys(emp).forEach(key => {
-                  if ((key.includes('主管') || key === 'N') && emp[key] === '是') isManager = true;
+                  if ((key.includes('主管') || key === '空白欄位五') && emp[key] === '是') isManager = true;
               });
           }
           if (isManager && emp['姓名']) {
