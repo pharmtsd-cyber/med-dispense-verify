@@ -112,6 +112,15 @@ document.addEventListener("DOMContentLoaded", () => {
     const drug = State.activeDrugs.find(d => String(d['藥品代碼']).toUpperCase() === drugCode);
     
     if (pid && drugCode && drug) {
+      
+      // 👉 1. 顯示同步中的提示
+      document.getElementById("app-type-desc").innerHTML = '<span class="spinner-border spinner-border-sm text-primary"></span> 正在確認雲端最新額度...';
+      btnSubmitApp.disabled = true;
+
+      // 👉 2. 呼叫智能同步 (超過15秒才會真正發送請求，否則瞬間通過)
+      await window.smartSync(); 
+
+      // 👉 3. 確保畫面歷史表格也更新到最新
       document.getElementById("app-hist-pid").value = pid; 
       renderAppHistory();
 
