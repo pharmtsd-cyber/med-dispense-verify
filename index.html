@@ -145,12 +145,18 @@
           <div class="card-header bg-white d-flex justify-content-between align-items-center">
             <h5 class="mb-0 fw-bold"><i class="bi bi-clock-history"></i> 本藥品歷史申請紀錄</h5>
             <div class="d-flex gap-2">
+              <!-- 👉 新增：排序切換選單 -->
+              <select id="app-hist-sort" class="form-select form-select-sm border-primary fw-bold text-primary" style="width: auto;" onchange="renderAppHistory()">
+                <option value="logTime">排序：建單時間 (新到舊)</option>
+                <option value="actDate">排序：啟用日期 (新到舊)</option>
+              </select>
+              
               <input type="text" id="app-hist-pid" class="form-control form-control-sm text-uppercase" placeholder="病歷號" style="width: 120px;">
               <input type="date" id="app-hist-start" class="form-control form-control-sm"><span class="align-self-center">-</span><input type="date" id="app-hist-end" class="form-control form-control-sm">
               <button class="btn btn-sm btn-secondary" onclick="renderAppHistory()">查詢</button>
             </div>
           </div>
-          <div class="card-body p-0"><div class="table-responsive"><table class="table table-hover align-middle mb-0 text-center"><thead class="table-light small"><tr><th>申請日期</th><th>啟用日期</th><th>病歷號</th><th>類別</th><th>天數/數量</th><th>處理單位</th></tr></thead><tbody id="app-history-table"></tbody></table></div></div>
+          <div class="card-body p-0"><div class="table-responsive"><table class="table table-hover align-middle mb-0 text-center"><thead class="table-light small"><tr><th>收單時間 (建單)</th><th>啟用日期</th><th>病歷號</th><th>類別</th><th>天數/數量</th><th>處理單位</th></tr></thead><tbody id="app-history-table"></tbody></table></div></div>
         </div>
       </div>
 
