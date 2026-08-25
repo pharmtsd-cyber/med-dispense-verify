@@ -10,28 +10,26 @@ function openApplicationForm() {
   document.getElementById("app-form-drug-name").innerText = `${drug['藥品名稱']} (${drug['藥品代碼']})`;
   document.getElementById("app-back-drug-name").innerText = drug['藥品名稱'];
   
+  // 👉 修正：文字改為「初次申請預設」
   document.getElementById("app-drug-info-card").innerHTML = `
     <div class="row text-center">
       <div class="col-4 border-end"><div class="text-muted small">管制天數</div><div class="fw-bold fs-5 text-primary">${drug['管制天數']} 天</div></div>
-      <div class="col-4 border-end"><div class="text-muted small">初次申請上限</div><div class="fw-bold fs-5">${drug['預設申請天數']} 天 / ${drug['預設申請數量']} 支</div></div>
+      <div class="col-4 border-end"><div class="text-muted small">初次申請預設</div><div class="fw-bold fs-5">${drug['預設申請天數']} 天 / ${drug['預設申請數量']} 支</div></div>
       <div class="col-4"><div class="text-muted small">展延申請上限</div><div class="fw-bold fs-5">${drug['展延天數上限']} 天 / ${drug['展延數量上限']} 支</div></div>
     </div>
   `;
 
+  // ... (表單重置與初始化不變) ...
   const form = document.getElementById("app-form");
   if(form) form.reset();
-  
   document.getElementById("app-pharmacist-id").value = user.id;
   document.getElementById("app-pharmacist-name").value = user.name;
-  
   if(user.unit) {
     const radio = document.querySelector(`input[name="app-unit-radio"][value="${user.unit}"]`);
     if(radio) radio.checked = true;
   }
-  
   document.getElementById("app-start-date").value = new Date().toISOString().split('T')[0];
   document.getElementById("app-start-date").readOnly = false;
-  
   document.querySelectorAll('input[name="app-type"]').forEach(r => { r.disabled = true; r.checked = false; });
   
   switchView('application');
@@ -179,7 +177,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  document.getElementById("app-form").addEventListener("submit", async (e) => {
+document.getElementById("app-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     if(!checkNetwork()) return;
     
@@ -203,7 +201,8 @@ document.addEventListener("DOMContentLoaded", () => {
       "申請數量": inputAppQty.value,
       "處理單位": unitEl.value,
       "申請日期": formatAsDate(now), 
-      "收單時間": formatAsTime(now), 
+      // 👉 修正重點：儲存時強制給予「完整日期 + 時間」，打破 1899 魔咒
+      "收單時間": formatAsDate(now) + " " + formatAsTime(now), 
       "主管核准人": document.getElementById("app-manager").value,
       "申請備註": document.getElementById("app-note").value,
       "藥師員工編號": document.getElementById("app-pharmacist-id").value,
@@ -217,7 +216,7 @@ document.addEventListener("DOMContentLoaded", () => {
       State.applications.push(dataObj); 
       renderAppHistory(); 
       document.getElementById("app-form").reset();
-      radios.forEach(r => { r.disabled = true; r.checked = false; });
+      document.querySelectorAll('input[name="app-type"]').forEach(r => { r.disabled = true; r.checked = false; });
       btnSubmitApp.disabled = true;
       btnSubmitApp.innerText = "確認送出申請";
     } else {
