@@ -88,7 +88,6 @@ function logout() {
 }
 
 // ================= 系統初始化 =================
-// js/main.js (修改 initApp 區塊與新增 forceSyncData)
 
 async function initApp(user) {
   document.getElementById("login-container").classList.add("d-none-important");
@@ -97,13 +96,21 @@ async function initApp(user) {
 
   document.getElementById("overview-content").innerHTML = '<div class="alert alert-info">正在載入系統巨量資料，請稍候...</div>';
   
-  // 👉 新增：開機時一併載入所有藥品(allDrugs)，讓主檔維護頁面達到秒開
-  State.employeeData = await fetchData('getEmployeeData');
-  State.allDrugs = await fetchData('getAllDrugs'); 
-  State.activeDrugs = await fetchData('getActiveDrugs');
-  State.unitData = await fetchData('getUnits');
-  State.applications = await fetchData('getApplications');
-  State.dispenseLogs = await fetchData('getDispenseLogs');
+  // 👉 核心優化：原本 6 次請求合併為 1 次，突破醫院防火牆限制
+  const initData = await fetchData('getInitData');
+  
+  // 萬一網路出錯回傳空值，給予空陣列防呆
+  if (!initData || Object.keys(initData).length === 0) {
+      alert("資料載入失敗，請檢查網路連線或重新整理頁面。");
+      return;
+  }
+
+  State.employeeData = initData.employees || [];
+  State.allDrugs = initData.allDrugs || [];
+  State.activeDrugs = initData.activeDrugs || [];
+  State.unitData = initData.units || [];
+  State.applications = initData.applications || [];
+  State.dispenseLogs = initData.dispenseLogs || [];
   
   const menuContainer = document.getElementById("dynamic-drug-menu");
   const overviewFilter = document.getElementById("overview-drug-filter");
@@ -126,7 +133,6 @@ async function initApp(user) {
   
   populateUnitSelects();
   
-  // 👉 系統初始化時，同步把圖表跟主檔維護表格畫好
   if (typeof renderOverview === "function") renderOverview();
   if (typeof renderDrugManageTable === "function") renderDrugManageTable(); 
 }
@@ -135,9 +141,13 @@ async function forceSyncData() {
   if(!checkNetwork()) return;
   alert("開始與伺服器同步資料，請稍候...");
   
-  State.applications = await fetchData('getApplications');
-  State.dispenseLogs = await fetchData('getDispenseLogs');
-  State.allDrugs = await fetchData('getAllDrugs');
+  // 👉 優化：同步更新也打包成 1 次請求
+  const syncData = await fetchData('getSyncData');
+  if (syncData) {
+      State.applications = syncData.applications || [];
+      State.dispenseLogs = syncData.dispenseLogs || [];
+      State.allDrugs = syncData.allDrugs || [];
+  }
   
   if (State.currentSelectedDrugCode) {
     refreshSingleDrugDashboard();
