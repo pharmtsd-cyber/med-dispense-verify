@@ -4,26 +4,28 @@ const State = {
   activeDrugs: [],
   employeeData: [],
   unitData: [],
-  applications: [], // 前端快取：申請單
-  dispenseLogs: [], // 前端快取：調劑紀錄
+  applications: [], 
+  dispenseLogs: [], 
   currentSelectedDrugCode: null,
   chartInstances: {}
 };
 
-// 工具：標準化日期 YYYY/MM/DD
 function formatAsDate(dateStr) {
   if(!dateStr) return "";
   const d = new Date(dateStr);
   if(isNaN(d.getTime())) return dateStr;
+  // 👉 阻擋 Google Sheets 的 1899 年純時間物件被當成日期顯示
+  if(d.getFullYear() < 1900) return ""; 
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const dd = String(d.getDate()).padStart(2, '0');
   return `${y}/${m}/${dd}`;
 }
 
-// 工具：標準化時間 HH:mm:ss
 function formatAsTime(dateStr) {
   if(!dateStr) return "";
+  // 若字串已經是 HH:mm:ss，直接回傳
+  if(typeof dateStr === 'string' && dateStr.match(/^\d{1,2}:\d{2}:\d{2}$/)) return dateStr;
   const d = new Date(dateStr);
   if(isNaN(d.getTime())) return dateStr;
   const h = String(d.getHours()).padStart(2, '0');
@@ -32,7 +34,6 @@ function formatAsTime(dateStr) {
   return `${h}:${m}:${s}`;
 }
 
-// 網路狀態檢查工具
 function checkNetwork() {
   if (!navigator.onLine) {
     alert("⛔ 網路已斷線！請確認網路連線後再進行操作，避免資料遺失。");
