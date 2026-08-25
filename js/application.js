@@ -60,7 +60,7 @@ function openApplicationForm() {
      `;
   });
   document.getElementById("app-type-group").innerHTML = html;
-  document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-info-circle"></i> 請先輸入病歷號檢核';
+  document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-info-circle text-muted"></i> 請先輸入病歷號檢核';
   
   switchView('application');
   document.getElementById("app-patient-id").focus();
@@ -112,25 +112,17 @@ document.addEventListener("DOMContentLoaded", () => {
     const drug = State.activeDrugs.find(d => String(d['藥品代碼']).toUpperCase() === drugCode);
     
     if (pid && drugCode && drug) {
-      
-      // 👉 1. 顯示同步中的提示
       document.getElementById("app-type-desc").innerHTML = '<span class="spinner-border spinner-border-sm text-primary"></span> 正在確認雲端最新額度...';
       btnSubmitApp.disabled = true;
 
-      // 👉 2. 呼叫智能同步 (超過15秒才會真正發送請求，否則瞬間通過)
       await window.smartSync(); 
 
-      // 👉 3. 確保畫面歷史表格也更新到最新
       document.getElementById("app-hist-pid").value = pid; 
       renderAppHistory();
 
-      // 👉 重置並清空所有選項，強迫藥師自己點選
       const radios = document.querySelectorAll('input[name="app-type"]');
       radios.forEach(r => { r.disabled = true; r.checked = false; });
-      document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-info-circle text-danger"></i> 檢核完成，請點選上方亮起的「申請類別」';
-      btnSubmitApp.disabled = true;
-
-      // 👉 鎖定並清空天數與數量，直到使用者選擇類別
+      
       inputAppDays.value = "";
       inputAppQty.value = "";
       inputAppDays.readOnly = true;
@@ -141,7 +133,10 @@ document.addEventListener("DOMContentLoaded", () => {
       document.getElementById("app-start-date").readOnly = true;
 
       const controlDays = parseInt(drug['管制天數'] || 14);
+      
+      // 👉 關鍵修復：將基準日期歸零至午夜 00:00:00，避免當天建單卻因時分秒落差被過濾掉
       const cutoffDate = new Date();
+      cutoffDate.setHours(0, 0, 0, 0); 
       cutoffDate.setDate(cutoffDate.getDate() - controlDays);
 
       let latestApp = null;
@@ -150,6 +145,8 @@ document.addEventListener("DOMContentLoaded", () => {
       State.applications.forEach(app => {
         if (String(app['病歷號']).toUpperCase() === pid && String(app['藥品代碼']).toUpperCase() === drugCode && app['作廢'] !== 'Y') {
           const appDate = new Date(formatAsDate(app['申請日期']));
+          appDate.setHours(0, 0, 0, 0);
+          
           if (appDate >= cutoffDate) {
             let sDate = new Date(formatAsDate(app['啟用日期'] || app['申請日期']));
             let eDate = new Date(sDate);
@@ -171,6 +168,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 r.disabled = false;
             }
         });
+        // 👉 動態文字：無紀錄
+        document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-check-circle text-success fw-bold"></i> ✅ 查無近期紀錄，請點選上方亮起的「初次類別」。';
       } else {
         const currentCycleStart = formatAsDate(latestApp['啟用日期'] || latestApp['申請日期']);
         lockedStartDateStr = currentCycleStart.replace(/\//g, '-');
@@ -203,7 +202,12 @@ document.addEventListener("DOMContentLoaded", () => {
         });
 
         if (isMaxedOut || hasUsedExtension) {
+            // 👉 動態文字：額度已滿
+            document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-exclamation-triangle text-danger fw-bold"></i> ⚠️ 本次療程已達全局額度，僅能選擇「突破限制」建立新療程。';
             alert(`此病患本次療程已達全局額度，或已申請過展延。\n僅能選擇「🔴 突破限制」之類別建立新療程。`);
+        } else {
+            // 👉 動態文字：有紀錄且尚有額度
+            document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-info-circle text-primary fw-bold"></i> 🔍 已找到近期紀錄，可選擇「一般延伸」或「突破限制」。';
         }
       }
     }
@@ -315,10 +319,9 @@ document.addEventListener("DOMContentLoaded", () => {
       State.applications.push(dataObj); 
       renderAppHistory(); 
       
-      // 送出成功後，重置表單並將畫面還原至鎖定狀態
       document.getElementById("app-form").reset();
       document.querySelectorAll('input[name="app-type"]').forEach(r => { r.disabled = true; r.checked = false; });
-      document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-info-circle"></i> 請先輸入病歷號檢核';
+      document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-info-circle text-muted"></i> 請先輸入病歷號檢核';
       document.getElementById("app-start-date").value = "";
       document.getElementById("app-start-date").readOnly = true;
       document.getElementById("app-days").value = "";
