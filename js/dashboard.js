@@ -132,7 +132,12 @@ function drawMixedChart(code, prefix) {
       plugins: { legend: { position: 'top' }, tooltip: { mode: 'index', intersect: false } },
       scales: {
         y: { type: 'linear', position: 'left', title: { display: true, text: '數量 (支)' } },
-        y1: { type: 'linear', position: 'right', title: { display: true, text: '人數' }, grid: { drawOnChartArea: false } }
+        y1: { 
+          type: 'linear', position: 'right', 
+          title: { display: true, text: '人數' }, 
+          grid: { drawOnChartArea: false },
+          ticks: { stepSize: 1, precision: 0 } // 👉 強制人數必須是整數
+        }
       }
     }
   });
