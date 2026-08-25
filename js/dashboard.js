@@ -114,11 +114,12 @@ function drawMixedChart(code, prefix) {
     data: {
       labels: labels,
       datasets: [
-        { type: 'line', label: '每日人數 (人)', data: dataPat, borderColor: '#fd7e14', backgroundColor: '#fd7e14', borderWidth: 2, tension: 0.3, yAxisID: 'y1' },
-        { type: 'line', label: '實際用量 (支)', data: dataActual, borderColor: '#6f42c1', backgroundColor: '#6f42c1', borderWidth: 2, tension: 0.3, yAxisID: 'y' },
-        { type: 'bar', label: '申請量', data: dataApp, backgroundColor: 'rgba(13, 202, 240, 0.7)', yAxisID: 'y' },
-        { type: 'bar', label: '調劑量', data: dataDisp, backgroundColor: 'rgba(25, 135, 84, 0.7)', yAxisID: 'y' },
-        { type: 'bar', label: '退藥量', data: dataRet, backgroundColor: 'rgba(220, 53, 69, 0.7)', yAxisID: 'y' }
+        // 👉 加入 order: 1，確保線條畫在最上層不會被長條圖遮住
+        { type: 'line', label: '每日人數 (人)', data: dataPat, borderColor: '#fd7e14', backgroundColor: '#fd7e14', borderWidth: 2, tension: 0.3, yAxisID: 'y1', order: 1 },
+        { type: 'line', label: '實際用量 (支)', data: dataActual, borderColor: '#6f42c1', backgroundColor: '#6f42c1', borderWidth: 2, tension: 0.3, yAxisID: 'y', order: 1 },
+        { type: 'bar', label: '申請量', data: dataApp, backgroundColor: 'rgba(13, 202, 240, 0.7)', yAxisID: 'y', order: 2 },
+        { type: 'bar', label: '調劑量', data: dataDisp, backgroundColor: 'rgba(25, 135, 84, 0.7)', yAxisID: 'y', order: 2 },
+        { type: 'bar', label: '退藥量', data: dataRet, backgroundColor: 'rgba(220, 53, 69, 0.7)', yAxisID: 'y', order: 2 }
       ]
     },
     options: {
