@@ -165,28 +165,59 @@ async function initApp(user) {
   if (typeof renderDrugManageTable === "function") renderDrugManageTable(); 
 }
 
-async function forceSyncData() {
+let lastSyncTimestamp = 0;
+let isSmartSyncing = false;
+let smartSyncPromise = null;
+
+// 👉 全新：智能無感同步引擎
+window.smartSync = async function(force = false) {
+    const now = Date.now();
+    
+    // 如果距離上次同步不到 15 秒，且不強制更新，則直接秒回傳 (啟動快取護盾，保障連續刷條碼極速體驗)
+    if (!force && (now - lastSyncTimestamp < 15000)) {
+        return true; 
+    }
+    
+    // 如果已經有另一個動作正在同步中，就搭順風車等待同一個結果 (避免連按 Enter 發出多個請求)
+    if (isSmartSyncing) return smartSyncPromise;
+
+    isSmartSyncing = true;
+    smartSyncPromise = (async () => {
+        try {
+            const syncData = await fetchData(`getSyncData&days=${typeof LOAD_HISTORY_DAYS !== 'undefined' ? LOAD_HISTORY_DAYS : 0}`);
+            if (syncData) {
+                State.applications = syncData.applications || [];
+                State.dispenseLogs = syncData.dispenseLogs || [];
+                State.allDrugs = syncData.allDrugs || [];
+                lastSyncTimestamp = Date.now(); // 更新護盾時間
+            }
+            return true;
+        } catch (e) {
+            console.error("智能同步失敗:", e);
+            return false;
+        } finally {
+            isSmartSyncing = false;
+        }
+    })();
+    
+    return smartSyncPromise;
+};
+
+// 手動強制同步按鈕改為呼叫智能引擎 (強制更新)
+window.forceSyncData = async function() {
   if(!checkNetwork()) return;
-  alert("開始與伺服器同步資料，請稍候...");
+  alert("開始與伺服器同步最新資料，請稍候...");
   
-  // 👉 同步更新也加上天數參數
-  const syncData = await fetchData(`getSyncData&days=${LOAD_HISTORY_DAYS}`);
-  if (syncData) {
-      State.applications = syncData.applications || [];
-      State.dispenseLogs = syncData.dispenseLogs || [];
-      State.allDrugs = syncData.allDrugs || [];
-  }
+  await window.smartSync(true); // 傳入 true 無視 15 秒護盾
   
   if (State.currentSelectedDrugCode) {
     refreshSingleDrugDashboard();
-    if(typeof renderActivePatientsTable === "function") renderActivePatientsTable();
   } else {
     renderOverview();
   }
-  
   if (typeof renderDrugManageTable === "function") renderDrugManageTable();
   alert("資料同步完成！");
-}
+};
 
 function populateUnitSelects() {
   const appUnitGrp = document.getElementById("app-unit-group");
