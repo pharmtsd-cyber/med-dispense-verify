@@ -12,7 +12,12 @@ function openDispenseForm() {
   
   document.getElementById("disp-pharmacist-id").value = user.id;
   document.getElementById("disp-pharmacist-name").value = user.name;
-  document.getElementById("disp-unit").value = user.unit || "";
+  
+  // 👉 修正這裡：尋找對應的單位 Radio 按鈕並設定為選取狀態
+  if(user.unit) {
+    const radio = document.querySelector(`input[name="disp-unit-radio"][value="${user.unit}"]`);
+    if(radio) radio.checked = true;
+  }
   
   // 預設為調劑(綠色)
   document.getElementById("disp-type-disp").checked = true;
@@ -26,7 +31,7 @@ function openDispenseForm() {
   renderDispenseHistory(); 
 }
 
-// 👉 監聽調劑/退藥 Radio 按鈕切換，動態改變顏色
+// 監聽調劑/退藥 Radio 按鈕切換，動態改變顏色
 document.addEventListener("DOMContentLoaded", () => {
     document.querySelectorAll('input[name="disp-type"]').forEach(radio => {
         radio.addEventListener('change', (e) => {
@@ -56,7 +61,6 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 function renderDispenseHistory(forcePid = null) {
-  // ...維持原本歷史渲染邏輯 (與前一個版本完全相同，此處省略以省字數)...
   const tbody = document.getElementById("disp-history-table");
   if(!tbody) return;
   
@@ -126,7 +130,6 @@ function calculatePatientQuota(pid, drugCode) {
 }
 
 window.viewAppDetail = function(pid) {
-  // ...維持不變...
   const { latestApp } = calculatePatientQuota(pid, State.currentSelectedDrugCode);
   const contentBox = document.getElementById("appDetailContent");
   if(latestApp) {
@@ -150,6 +153,11 @@ window.viewAppDetail = function(pid) {
 
 async function processDispense(pid, qty, type, no, note) {
     if(!checkNetwork()) return false;
+    
+    // 👉 修正這裡：抓取單選按鈕的單位
+    const unitEl = document.querySelector('input[name="disp-unit-radio"]:checked');
+    const processUnit = unitEl ? unitEl.value : "";
+
     const now = new Date();
     const dataObj = {
       "病歷號": pid,
@@ -159,7 +167,7 @@ async function processDispense(pid, qty, type, no, note) {
       "退藥數量": type === "退藥" ? qty : 0,
       "手動或條碼": no ? "條碼掃描" : "手動輸入",
       "領藥號": no || "-",
-      "處理單位": document.getElementById("disp-unit").value,
+      "處理單位": processUnit,
       "備註": note || "",
       "調劑日期": formatAsDate(now),
       "調劑時間": formatAsTime(now),
@@ -179,7 +187,9 @@ async function processDispense(pid, qty, type, no, note) {
 }
 
 async function runDispenseCheck(pid, qty, type, no, note) {
-    if(!document.getElementById("disp-unit").value || !document.getElementById("disp-pharmacist-id").value) {
+    // 👉 修正這裡：驗證單位是否勾選
+    const unitEl = document.querySelector('input[name="disp-unit-radio"]:checked');
+    if(!unitEl || !document.getElementById("disp-pharmacist-id").value) {
        alert("請先確認「處理單位」與「作業藥師」已設定！"); return false;
     }
     
@@ -225,7 +235,6 @@ window.manualDispenseModal = async function() {
   const qtyStr = prompt("請輸入數量 (數字)：");
   if(!qtyStr || isNaN(qtyStr)) return;
   
-  // 👉 取得目前點選的 Radio (調劑或退藥)
   const type = document.querySelector('input[name="disp-type"]:checked').value;
   const note = prompt("請輸入備註 (退藥必填)：");
   
