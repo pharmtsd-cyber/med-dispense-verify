@@ -1,10 +1,36 @@
 // js/drug_manage.js
 
+let currentCustomCategories = [];
+
+// 👉 渲染自訂類別編輯區塊
+window.renderCustomCategories = function() {
+    const container = document.getElementById("custom-categories-container");
+    if (!container) return;
+    container.innerHTML = "";
+    currentCustomCategories.forEach((cat, idx) => {
+        container.innerHTML += `
+            <div class="d-flex gap-2 mb-2">
+                <input type="text" class="form-control form-control-sm border-primary" placeholder="選項文字 (例: 預防性投藥)" value="${cat.name}" onchange="currentCustomCategories[${idx}].name = this.value">
+                <input type="text" class="form-control form-control-sm border-info" placeholder="描述文字 (例: 手術前使用...)" value="${cat.desc}" onchange="currentCustomCategories[${idx}].desc = this.value">
+                <button type="button" class="btn btn-sm btn-danger" onclick="removeCustomCategory(${idx})"><i class="bi bi-trash"></i></button>
+            </div>
+        `;
+    });
+};
+
+window.addCustomCategory = function() {
+    currentCustomCategories.push({name: "", desc: ""});
+    renderCustomCategories();
+};
+
+window.removeCustomCategory = function(idx) {
+    currentCustomCategories.splice(idx, 1);
+    renderCustomCategories();
+};
+
 function renderDrugManageTable() {
   const tableBody = document.getElementById("drug-table-body");
   if(!tableBody) return;
-  
-  // 👉 直接取用在 main.js 開機時預載好的全域快取
   const allDrugs = State.allDrugs || [];
   tableBody.innerHTML = '';
   
@@ -42,6 +68,12 @@ function renderDrugManageTable() {
         document.getElementById("drug-max-ext-qty").value = drug['展延數量上限'];
         document.getElementById("drug-status").value = String(drug['啟用狀態']).toUpperCase() || 'Y';
         document.getElementById("drug-code").setAttribute("readonly", true);
+        
+        // 👉 載入該藥品的自訂類別
+        try {
+            currentCustomCategories = drug['自訂類別'] ? JSON.parse(drug['自訂類別']) : [];
+        } catch(e) { currentCustomCategories = []; }
+        renderCustomCategories();
       }
     });
   });
@@ -56,6 +88,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const btnSave = document.getElementById("btn-save-drug");
     btnSave.disabled = true;
     btnSave.innerText = "儲存中...";
+    
+    // 過濾掉空白的自訂類別
+    const validCats = currentCustomCategories.filter(c => c.name.trim() !== "");
 
     const dataObj = {
       "藥品代碼": document.getElementById("drug-code").value.trim().toUpperCase(),
@@ -65,13 +100,14 @@ document.addEventListener("DOMContentLoaded", () => {
       "預設申請數量": document.getElementById("drug-default-qty").value,
       "展延天數上限": document.getElementById("drug-max-ext-days").value,
       "展延數量上限": document.getElementById("drug-max-ext-qty").value,
-      "啟用狀態": document.getElementById("drug-status").value
+      "啟用狀態": document.getElementById("drug-status").value,
+      // 👉 轉為 JSON 字串存入 Google Sheets
+      "自訂類別": JSON.stringify(validCats)
     };
 
     const res = await postData("saveDrug", dataObj);
     if(res.status === 'success') {
       alert("藥品設定已儲存！");
-      // 👉 儲存完後重新把最新資料庫抓回快取，並即時重繪表格
       State.allDrugs = await fetchData('getAllDrugs');
       renderDrugManageTable(); 
       document.getElementById("btn-clear-drug").click();
@@ -85,5 +121,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("btn-clear-drug").addEventListener("click", () => {
     drugForm.reset();
     document.getElementById("drug-code").removeAttribute("readonly");
+    currentCustomCategories = [];
+    renderCustomCategories();
   });
 });
