@@ -13,9 +13,9 @@ function renderOverview() {
 
   drugsToRender.forEach(drug => {
     const code = drug['藥品代碼'];
-    
     let totalPatients = new Set();
     let totalAppQty = 0;
+    
     State.applications.forEach(app => {
       if(String(app['藥品代碼']).toUpperCase() === code && app['作廢'] !== 'Y') {
         totalPatients.add(app['病歷號']);
@@ -23,8 +23,7 @@ function renderOverview() {
       }
     });
 
-    let totalDispensed = 0;
-    let totalReturned = 0;
+    let totalDispensed = 0, totalReturned = 0;
     State.dispenseLogs.forEach(log => {
       if(String(log['藥品代碼']).toUpperCase() === code && log['作廢'] !== 'Y') {
         totalDispensed += parseInt(log['調劑數量'] || 0);
@@ -52,7 +51,8 @@ function renderOverview() {
               <div class="text-muted small">退回數量</div><h3 class="text-danger mt-1">${totalReturned} 支</h3>
             </div>
           </div>
-          <div style="height: 250px; width: 100%;"><canvas id="chart-${code}"></canvas></div>
+          <!-- 👉 重點：加上 data-chart-code 標記，方便替換 ID -->
+          <div style="height: 350px; width: 100%;"><canvas id="chart-overview-${code}" data-chart-code="${code}"></canvas></div>
         </div>
       </div>
     `;
@@ -60,24 +60,81 @@ function renderOverview() {
   });
 
   setTimeout(() => {
-    drugsToRender.forEach(drug => drawChart(drug['藥品代碼']));
+    drugsToRender.forEach(drug => drawMixedChart(drug['藥品代碼'], 'overview'));
   }, 100);
 }
 
-function drawChart(code) {
-  const ctx = document.getElementById(`chart-${code}`);
+// 👉 全新綜合圖表產生器
+function drawMixedChart(code, prefix) {
+  const canvasId = `chart-${prefix}-${code}`;
+  const ctx = document.getElementById(canvasId);
   if(!ctx) return;
-  if (State.chartInstances[code]) { State.chartInstances[code].destroy(); }
-  State.chartInstances[code] = new Chart(ctx, {
-    type: 'line',
+
+  if (State.chartInstances[canvasId]) { State.chartInstances[canvasId].destroy(); }
+
+  // 1. 抓取日期範圍
+  const startStr = document.getElementById(`${prefix === 'overview' ? 'overview' : 'single-drug'}-date-start`).value.replace(/-/g, '/');
+  const endStr = document.getElementById(`${prefix === 'overview' ? 'overview' : 'single-drug'}-date-end`).value.replace(/-/g, '/');
+  
+  // 2. 準備日期標籤
+  let labels = [];
+  let curr = new Date(startStr);
+  const end = new Date(endStr);
+  while(curr <= end && labels.length < 31) { 
+      labels.push(formatAsDate(curr));
+      curr.setDate(curr.getDate() + 1);
+  }
+
+  // 3. 計算每一天的數據
+  let dataApp = [], dataDisp = [], dataRet = [], dataActual = [], dataPat = [];
+  
+  labels.forEach(dateLabel => {
+      let dApp = 0, dDisp = 0, dRet = 0;
+      let patSet = new Set();
+
+      State.applications.forEach(app => {
+          if(String(app['藥品代碼']).toUpperCase() === code && app['作廢'] !== 'Y' && formatAsDate(app['申請日期']) === dateLabel) {
+              dApp += parseInt(app['申請數量'] || 0);
+              patSet.add(app['病歷號']);
+          }
+      });
+
+      State.dispenseLogs.forEach(log => {
+          if(String(log['藥品代碼']).toUpperCase() === code && log['作廢'] !== 'Y' && formatAsDate(log['調劑日期']) === dateLabel) {
+              dDisp += parseInt(log['調劑數量'] || 0);
+              dRet += parseInt(log['退藥數量'] || 0);
+              patSet.add(log['病歷號']);
+          }
+      });
+
+      dataApp.push(dApp);
+      dataDisp.push(dDisp);
+      dataRet.push(dRet);
+      dataActual.push(dDisp - dRet); // 實際用量 = 調劑 - 退藥
+      dataPat.push(patSet.size); // 每日作業人數
+  });
+
+  // 4. 繪製 Chart.js
+  State.chartInstances[canvasId] = new Chart(ctx, {
+    type: 'bar', // 主體用長條圖，部分數據設為折線
     data: {
-      labels: ['08/19', '08/20', '08/21', '08/22', '08/23', '08/24'],
+      labels: labels,
       datasets: [
-        { label: '申請量', data: [5, 2, 8, 4, 1, 6], borderColor: '#0dcaf0', tension: 0.3 },
-        { label: '調劑量', data: [4, 3, 7, 3, 2, 5], borderColor: '#198754', tension: 0.3 }
+        { type: 'line', label: '每日人數 (人)', data: dataPat, borderColor: '#fd7e14', backgroundColor: '#fd7e14', borderWidth: 2, tension: 0.3, yAxisID: 'y1' },
+        { type: 'line', label: '實際用量 (支)', data: dataActual, borderColor: '#6f42c1', backgroundColor: '#6f42c1', borderWidth: 2, tension: 0.3, yAxisID: 'y' },
+        { type: 'bar', label: '申請量', data: dataApp, backgroundColor: 'rgba(13, 202, 240, 0.7)', yAxisID: 'y' },
+        { type: 'bar', label: '調劑量', data: dataDisp, backgroundColor: 'rgba(25, 135, 84, 0.7)', yAxisID: 'y' },
+        { type: 'bar', label: '退藥量', data: dataRet, backgroundColor: 'rgba(220, 53, 69, 0.7)', yAxisID: 'y' }
       ]
     },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } } }
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'top' }, tooltip: { mode: 'index', intersect: false } },
+      scales: {
+        y: { type: 'linear', position: 'left', title: { display: true, text: '數量 (支)' } },
+        y1: { type: 'linear', position: 'right', title: { display: true, text: '人數' }, grid: { drawOnChartArea: false } }
+      }
+    }
   });
 }
 
@@ -104,18 +161,19 @@ function refreshSingleDrugDashboard() {
   setTimeout(() => {
     const cardContent = document.getElementById(`overview-card-${code}`);
     if(cardContent && statsContainer) {
-       statsContainer.innerHTML = cardContent.innerHTML;
-       drawChart(code);
+       // 👉 解決 ID 衝突：將 overview 的 canvas ID 替換為 single 的 canvas ID
+       let newHtml = cardContent.innerHTML.replace(`id="chart-overview-${code}"`, `id="chart-single-${code}"`);
+       statsContainer.innerHTML = newHtml;
+       drawMixedChart(code, 'single');
     }
     document.getElementById("overview-drug-filter").value = "ALL";
   }, 150);
 
-  // 👉 綜合渲染歷史清單
+  // 渲染歷史清單邏輯 (維持不變)
   const tableContainer = document.getElementById("single-drug-records-table");
   if(!tableContainer) return;
   
   let records = [];
-  
   if(recordType === 'ALL' || recordType === 'APP') {
     State.applications.forEach(app => {
       if(String(app['藥品代碼']).toUpperCase() === code && app['作廢'] !== 'Y') {
@@ -142,9 +200,7 @@ function refreshSingleDrugDashboard() {
     });
   }
   
-  records.sort((a, b) => {
-    return new Date(b.date + ' ' + b.time) - new Date(a.date + ' ' + a.time);
-  });
+  records.sort((a, b) => new Date(b.date + ' ' + b.time) - new Date(a.date + ' ' + a.time));
   
   let html = `<table class="table table-hover align-middle text-center mb-0"><thead class="table-light small"><tr><th>時間</th><th>病歷號</th><th>動作</th><th>數量</th><th>操作單位/人員</th></tr></thead><tbody>`;
   records.forEach(r => {
@@ -152,7 +208,7 @@ function refreshSingleDrugDashboard() {
     const user = r.data['藥師姓名'] || '-';
     const unit = r.data['處理單位'] || '-';
     if(r.type === 'APP') {
-        html += `<tr><td>${r.date} ${r.time}</td><td class="fw-bold text-primary">${pid}</td><td><span class="badge bg-info text-dark">${r.data['申請類別']}</span></td><td class="fw-bold">+${r.data['申請數量']}</td><td class="small text-muted">${unit} / ${user}</td></tr>`;
+        html += `<tr><td>${r.date} ${r.time}</td><td class="fw-bold text-primary">${pid}</td><td><span class="badge bg-info text-dark">${r.data['申請類別']}</span></td><td class="fw-bold text-primary">+${r.data['申請數量']}</td><td class="small text-muted">${unit} / ${user}</td></tr>`;
     } else {
         const isDisp = parseInt(r.data['調劑數量']) > 0;
         const actionStr = isDisp ? '<span class="badge bg-success">調劑</span>' : '<span class="badge bg-danger">退藥</span>';
@@ -164,6 +220,5 @@ function refreshSingleDrugDashboard() {
   });
   html += `</tbody></table>`;
   if(records.length === 0) html = '<div class="text-center text-muted py-4">區間內無作業紀錄</div>';
-  
   tableContainer.innerHTML = html;
 }
