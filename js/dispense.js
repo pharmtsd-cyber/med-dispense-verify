@@ -1,5 +1,3 @@
-// js/dispense.js
-
 let isProcessingDispense = false;
 
 window.openDispenseForm = function() {
@@ -8,9 +6,7 @@ window.openDispenseForm = function() {
     const user = JSON.parse(sessionStorage.getItem("currentUser"));
 
     const drugNameEl = document.getElementById("disp-form-drug-name") || document.getElementById("disp-drug-name");
-    if(drugNameEl) {
-        drugNameEl.innerText = `${drug['藥品名稱']} (${drug['藥品代碼']})`;
-    }
+    if(drugNameEl) drugNameEl.innerText = `${drug['藥品名稱']} (${drug['藥品代碼']})`;
     
     const pharIdEl = document.getElementById("disp-pharmacist-id");
     if(pharIdEl) pharIdEl.value = user.id;
@@ -18,7 +14,6 @@ window.openDispenseForm = function() {
     const pharNameEl = document.getElementById("disp-pharmacist-name");
     if(pharNameEl) pharNameEl.value = user.name;
     
-    // 👉 核心修正 1：每次打開表單，預設選取登入時的處理單位
     if(user.unit) {
         const unitRadio = document.querySelector(`input[name="disp-unit-radio"][value="${user.unit}"]`);
         if(unitRadio) unitRadio.checked = true;
@@ -54,7 +49,6 @@ window.openDispenseForm = function() {
     
     switchView('dispense');
     renderDispenseHistory(); 
-    
     if(barcodeInput) barcodeInput.focus();
 };
 
@@ -73,7 +67,7 @@ window.renderDispenseHistory = function() {
     
     let html = "";
     sortedLogs.forEach(log => {
-        if(String(log['藥品代碼']).toUpperCase() === State.currentSelectedDrugCode && log['作廢'] !== 'Y') {
+        if(String(log['藥品代碼']).toUpperCase() === State.currentSelectedDrugCode) {
             const logPid = String(log['病歷號']).toUpperCase();
             if(pidFilter && !logPid.includes(pidFilter)) return;
             
@@ -81,6 +75,7 @@ window.renderDispenseHistory = function() {
             if(startStr && logDateStr < startStr) return;
             if(endStr && logDateStr > endStr) return;
 
+            const isVoid = log['作廢'] === 'Y';
             const logTypeStr = log['調劑類別'] || log['選擇調劑或退藥'] || '調劑';
             const isDispense = logTypeStr.includes('調劑');
             const displayBadgeStr = isDispense ? '調劑' : '退藥';
@@ -94,11 +89,10 @@ window.renderDispenseHistory = function() {
 
             const basisId = log['申請單號'];
             let basisHtml = '-';
-            
             if (basisId === undefined || basisId === 'undefined') {
                 basisHtml = `<span class="badge bg-danger">缺表頭: 申請單號</span>`;
             } else if (basisId && basisId !== '手動無單號' && basisId !== '退藥紀錄' && basisId !== '無申請單號') {
-                basisHtml = `<button class="btn btn-sm btn-outline-primary py-0 px-2 fw-bold" onclick="showAppDetails('${basisId}')" style="font-size: 0.8rem; border-radius: 12px;"><i class="bi bi-file-earmark-text"></i> ${basisId.substring(0, 12)}${basisId.length > 12 ? '...' : ''}</button>`;
+                basisHtml = `<button class="btn btn-sm ${isVoid ? 'btn-outline-secondary' : 'btn-outline-primary'} py-0 px-2 fw-bold" onclick="showAppDetails('${basisId}')" style="font-size: 0.8rem; border-radius: 12px;"><i class="bi bi-file-earmark-text"></i> ${basisId.substring(0, 12)}${basisId.length > 12 ? '...' : ''}</button>`;
             } else if (basisId) {
                 basisHtml = `<span class="small text-muted">${basisId}</span>`;
             }
@@ -108,46 +102,31 @@ window.renderDispenseHistory = function() {
                 noHtml = `${log['領藥號'] || '-'} <br><span class="text-danger small">退: ${log['退藥號']}</span>`;
             }
 
-            html += `<tr>
+            const logId = log['調劑流水號'] || log['申請單號']; 
+            const actionButtons = `
+              <div class="btn-group btn-group-sm shadow-sm">
+                <button class="btn btn-outline-primary" onclick="openActionModal('DIS', 'EDIT', '${logId}')">修改</button>
+                ${isVoid 
+                  ? `<button class="btn btn-outline-success" onclick="openActionModal('DIS', 'RESTORE', '${logId}')">還原</button>`
+                  : `<button class="btn btn-outline-danger" onclick="openActionModal('DIS', 'VOID', '${logId}')">作廢</button>`
+                }
+              </div>
+            `;
+
+            const rowClass = isVoid ? 'bg-light text-muted text-decoration-line-through opacity-75' : '';
+
+            html += `<tr class="${rowClass}">
                 <td>${logDateStr} ${formatAsTime(log['調劑時間'])}</td>
-                <td class="fw-bold text-primary">${logPid}</td>
-                <td><span class="badge ${isDispense ? 'bg-success' : 'bg-danger'}">${displayBadgeStr}</span></td>
-                <td class="fw-bold ${isDispense ? 'text-success' : 'text-danger'}">${displayQty > 0 ? '+' : ''}${displayQty}</td>
-                <td class="small text-muted">${noHtml}</td>
+                <td class="fw-bold ${isVoid ? '' : 'text-primary'}">${logPid}</td>
+                <td><span class="badge ${isVoid ? 'bg-secondary' : (isDispense ? 'bg-success' : 'bg-danger')}">${displayBadgeStr}</span></td>
+                <td class="fw-bold ${isVoid ? '' : (isDispense ? 'text-success' : 'text-danger')}">${displayQty > 0 ? '+' : ''}${displayQty}</td>
+                <td class="small">${noHtml}</td>
                 <td>${basisHtml}</td>
+                <td>${actionButtons}</td>
             </tr>`;
         }
     });
-    tbody.innerHTML = html || '<tr><td colspan="6" class="text-muted">區間內查無符合紀錄</td></tr>';
-};
-
-window.showAppDetails = function(appId) {
-    const app = State.applications.find(a => a['申請單號'] === appId || a['收單時間'] === appId);
-    const contentDiv = document.getElementById("appDetailContent");
-
-    if (!app) {
-        contentDiv.innerHTML = '<div class="alert alert-warning"><i class="bi bi-exclamation-triangle"></i> 找不到對應的申請單紀錄，可能已被作廢或系統尚未同步。</div>';
-    } else {
-        contentDiv.innerHTML = `
-            <table class="table table-bordered table-sm mb-0 align-middle">
-                <tbody>
-                    <tr><th class="bg-light text-end" width="30%">申請單號</th><td class="text-secondary font-monospace small">${app['申請單號'] || '-'}</td></tr>
-                    <tr><th class="bg-light text-end">病歷號</th><td class="fw-bold text-primary fs-6">${app['病歷號']}</td></tr>
-                    <tr><th class="bg-light text-end">藥品代碼</th><td class="fw-bold">${app['藥品代碼']}</td></tr>
-                    <tr><th class="bg-light text-end">申請類別</th><td><span class="badge bg-info text-dark">${app['申請類別']}</span></td></tr>
-                    <tr><th class="bg-light text-end">申請數量</th><td><span class="text-muted">${app['申請天數']} 天</span> / <span class="fw-bold text-danger fs-6">${app['申請數量']} 支</span></td></tr>
-                    <tr><th class="bg-light text-end">啟用日期</th><td class="fw-bold text-success">${formatAsDate(app['啟用日期']) || '-'}</td></tr>
-                    <tr><th class="bg-light text-end">建單時間</th><td class="small text-muted">${formatAsDate(app['收單時間'])} ${formatAsTime(app['收單時間'])}</td></tr>
-                    <tr><th class="bg-light text-end">藥師 / 單位</th><td>${app['藥師姓名']} <span class="text-muted small">(${app['處理單位']})</span></td></tr>
-                    <tr><th class="bg-light text-end">主管簽核</th><td>${app['主管核准人'] ? `<span class="badge bg-warning text-dark"><i class="bi bi-pen"></i> ${app['主管核准人']}</span>` : '<span class="text-muted small">無</span>'}</td></tr>
-                    <tr><th class="bg-light text-end">備註說明</th><td>${app['申請備註'] || '<span class="text-muted small">-</span>'}</td></tr>
-                </tbody>
-            </table>
-        `;
-    }
-    const modalEl = document.getElementById('appDetailModal');
-    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-    modal.show();
+    tbody.innerHTML = html || '<tr><td colspan="7" class="text-center text-muted">區間內查無符合紀錄</td></tr>';
 };
 
 const barcodeInput = document.getElementById("barcode-input");
@@ -226,8 +205,7 @@ window.manualDispenseModal = function() {
     const form = document.getElementById("manual-dispense-form");
     if(form) form.reset();
     
-    const modalEl = document.getElementById('manualDispenseModalElement');
-    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('manualDispenseModalElement'));
     modal.show();
 };
 
@@ -275,9 +253,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const pid = document.getElementById("manual-pid").value.trim().toUpperCase();
             const qty = parseInt(document.getElementById("manual-qty").value);
             const no = document.getElementById("manual-no").value.trim();
-            
-            const retInput = document.getElementById("manual-ret-no");
-            const retNo = retInput ? retInput.value.trim() : "";
+            const retNo = document.getElementById("manual-ret-no") ? document.getElementById("manual-ret-no").value.trim() : "";
             const note = document.getElementById("manual-note").value.trim();
             
             isProcessingDispense = true;
@@ -296,9 +272,7 @@ document.addEventListener("DOMContentLoaded", () => {
             submitBtn.innerText = originalBtnText;
 
             if (success) {
-                const modalEl = document.getElementById('manualDispenseModalElement');
-                const modal = bootstrap.Modal.getInstance(modalEl);
-                if(modal) modal.hide();
+                bootstrap.Modal.getInstance(document.getElementById('manualDispenseModalElement')).hide();
                 manualForm.reset();
             }
         });
@@ -311,7 +285,7 @@ function showDispenseResult(status, htmlMsg) {
     if(status === 'success') {
         resDiv.className = "alert alert-success fs-5 fw-bold shadow-sm";
         resDiv.innerHTML = `<i class="bi bi-check-circle-fill"></i> ${htmlMsg}`;
-    } else if (status === 'error') {
+    } else {
         resDiv.className = "alert alert-danger fs-5 fw-bold shadow-sm";
         resDiv.innerHTML = `<i class="bi bi-x-circle-fill"></i> ${htmlMsg}`;
     }
@@ -336,15 +310,11 @@ async function executeDispenseFlow(pid, qty, type, no, retNo, note, inputMethod)
 
     const now = new Date();
     const user = JSON.parse(sessionStorage.getItem("currentUser"));
-    const signedQty = (type === '調劑') ? -Math.abs(qty) : Math.abs(qty);
-    
-    // 👉 核心修正 2：讀取表單上被選中的「處理單位」按鈕，若無則降級使用 session 單位
     const unitEl = document.querySelector('input[name="disp-unit-radio"]:checked');
     const selectedUnit = unitEl ? unitEl.value : (user.unit || "");
     
     let basisIdsUsed = [];
 
-    // 跨單湊合處理
     for (let plan of checkResult.deductionPlan) {
         const splitQty = plan.deductQty;
         const splitSignedQty = (type === '調劑') ? -Math.abs(splitQty) : Math.abs(splitQty);
@@ -368,7 +338,7 @@ async function executeDispenseFlow(pid, qty, type, no, retNo, note, inputMethod)
             "調劑時間": formatAsDate(now) + " " + formatAsTime(now),
             "藥師員工編號": user.id,
             "藥師姓名": user.name,
-            "處理單位": selectedUnit, // 👉 成功套用畫面上選擇的單位
+            "處理單位": selectedUnit,
             "調劑退藥理由": note    
         };
 
