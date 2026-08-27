@@ -284,6 +284,39 @@
     </div>
   </div>
 
+  <!-- 👉 新增：無條碼手動輸入的專屬表單視窗 -->
+  <div class="modal fade" id="manualDispenseModalElement" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header bg-secondary text-white">
+          <h5 class="modal-title fw-bold"><i class="bi bi-keyboard"></i> 手動作業輸入</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="manual-dispense-form">
+            <div class="mb-3">
+              <label class="form-label fw-bold">病歷號 <span class="text-danger">*</span></label>
+              <input type="text" id="manual-pid" class="form-control text-uppercase" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-bold">數量 <span class="text-danger">*</span></label>
+              <input type="number" id="manual-qty" class="form-control" required min="1">
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-bold" id="manual-no-label">領藥號 / 退藥號</label>
+              <input type="text" id="manual-no" class="form-control">
+            </div>
+            <div class="mb-4">
+              <label class="form-label fw-bold">備註 / 退藥理由 <span class="text-muted small">(選填)</span></label>
+              <input type="text" id="manual-note" class="form-control" placeholder="可留空">
+            </div>
+            <button type="submit" class="btn btn-primary w-100 fw-bold shadow-sm">確認送出</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="js/config.js"></script>
   <script src="js/api.js"></script>
   <script src="js/state.js"></script>
