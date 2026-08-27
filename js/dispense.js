@@ -267,25 +267,35 @@ document.addEventListener("DOMContentLoaded", () => {
         if(!str) return;
         
         const parts = str.split(';');
+        
+        // 依據您的格式，至少需要前 4 段資料
         if (parts.length >= 4) {
           
-          // 👇 這裡就是之前被我用註解省略掉的「變數解析邏輯」，已經幫您補回來了！
-          const pid = parts[0].trim();                      // 條碼第 1 段：病歷號
-          const no = parts[1].trim();                       // 條碼第 2 段：處方單號或藥品代碼
-          const qty = parseInt(parts[2].trim()) || 1;       // 條碼第 3 段：數量
+          // 👇 精準對應您的真實條碼格式
+          const pid = parts[0].trim();                      // [0] 病歷號 (如: 1038391)
+          const scanDrugCode = parts[1].trim();             // [1] 藥品代碼 (如: IRE*D1)
+          const no = parts[2].trim();                       // [2] 領藥號 (如: 80048)
+          const qty = parseInt(parts[3].trim()) || 1;       // [3] 數量 (如: 2)
+          // parts[4] (條碼ID) 與 parts[5] (用法) 暫時不需傳入檢核，留存即可
           
-          // 取得畫面上選擇的是「發藥」還是「退藥」
+          // 👉 終極防呆：確保刷入的藥，跟目前畫面所在的藥品專區是一樣的！
+          if (State.currentSelectedDrugCode && scanDrugCode !== State.currentSelectedDrugCode) {
+              alert(`⛔ 刷錯藥品了！\n您目前停留在【${State.currentSelectedDrugCode}】的專區，\n但條碼顯示這支藥是【${scanDrugCode}】！\n請切換至正確的藥品專區再行發藥。`);
+              barcodeInput.value = "";
+              return;
+          }
+  
           const typeEl = document.querySelector('input[name="disp-type"]:checked');
           const type = typeEl ? typeEl.value : '發藥';
           
           isProcessingDispense = true;
           barcodeInput.disabled = true;
           
-          // 👉 刷入條碼後，瞬間進行智能無感同步 (連續刷時會直接秒解)
           barcodeInput.placeholder = "雲端檢核中...";
           await window.smartSync(); 
           
           try {
+              // 把拆解出來的病歷號、數量、領藥號傳入檢核系統
               await runDispenseCheck(pid, qty, type, no, "");
           } catch(err) {
               console.error(err);
@@ -297,8 +307,7 @@ document.addEventListener("DOMContentLoaded", () => {
               barcodeInput.focus();
           }
         } else {
-          // 防呆：如果刷進來的不是合格的二維條碼
-          alert("⛔ 條碼格式錯誤！請確認刷入的是包含分號(;)的完整二維條碼。");
+          alert("⛔ 條碼格式錯誤！請確認刷入的是完整的二維條碼 (至少包含: 病歷號;藥品;領藥號;數量)。");
           barcodeInput.value = "";
         }
       }
