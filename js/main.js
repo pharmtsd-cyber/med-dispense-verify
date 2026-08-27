@@ -327,3 +327,153 @@ function enablePharmacistChange(prefix) {
   };
   inputId.addEventListener('keypress', inputId._phHandler);
 }
+
+// 👉 將以下代碼加入 js/main.js 最下方
+
+window.openActionModal = function(recordType, action, recordId) {
+    const user = JSON.parse(sessionStorage.getItem("currentUser"));
+    if (!user) return alert("請先登入！");
+
+    const modal = new bootstrap.Modal(document.getElementById('recordActionModal'));
+    const form = document.getElementById('record-action-form');
+    form.reset();
+
+    // 尋找目標資料
+    let record = null;
+    let pkField = "";
+    if (recordType === 'APP') {
+        record = State.applications.find(a => a['申請單號'] === recordId);
+        pkField = "申請單號";
+    } else {
+        record = State.dispenseLogs.find(d => d['調劑流水號'] === recordId || d['申請單號'] === recordId); // 若流水號未生成，用單號暫代
+        pkField = "調劑流水號";
+    }
+
+    if (!record) return alert("找不到該筆資料，請先重新整理同步！");
+
+    document.getElementById('action-type').value = action;
+    document.getElementById('action-record-type').value = recordType;
+    document.getElementById('action-record-id').value = record[pkField] || recordId;
+
+    document.getElementById('action-emp-id').value = user.id;
+    document.getElementById('action-emp-name').value = user.name;
+    
+    // 預設抓取登入單位，但允許藥師手動修改
+    const currentUnitEl = document.querySelector(`input[name="${recordType === 'APP' ? 'app' : 'disp'}-unit-radio"]:checked`);
+    document.getElementById('action-unit').value = currentUnitEl ? currentUnitEl.value : (user.unit || "");
+
+    const header = document.getElementById('action-modal-header');
+    const title = document.getElementById('action-modal-title');
+    const btn = document.getElementById('btn-submit-action');
+    const dynamicFieldsContainer = document.getElementById('action-dynamic-fields');
+    dynamicFieldsContainer.innerHTML = "";
+
+    if (action === 'EDIT') {
+        header.className = "modal-header text-white bg-primary";
+        title.innerHTML = `<i class="bi bi-pencil-square"></i> 修改資料 [${record[pkField] || recordId}]`;
+        btn.className = "btn btn-primary w-100 fw-bold shadow-sm";
+        btn.innerText = "確認修改並儲存";
+
+        // 動態生成可編輯欄位 (排除系統欄位與異動欄位)
+        const skipFields = [pkField, '收單時間', '調劑時間', '作廢', '作廢藥師員工編號', '作廢藥師姓名', '作廢時間', '異動單位', '異動藥師員工編號', '異動藥師姓名', '異動時間', '異動備註'];
+        
+        Object.keys(record).forEach(key => {
+            if (!skipFields.includes(key) && typeof record[key] !== 'undefined') {
+                dynamicFieldsContainer.innerHTML += `
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold small">${key}</label>
+                        <input type="text" class="form-control editable-field" data-key="${key}" value="${record[key]}">
+                    </div>
+                `;
+            }
+        });
+    } else if (action === 'VOID') {
+        header.className = "modal-header text-white bg-danger";
+        title.innerHTML = `<i class="bi bi-trash"></i> 作廢資料 [${record[pkField] || recordId}]`;
+        btn.className = "btn btn-danger w-100 fw-bold shadow-sm";
+        btn.innerText = "確認作廢此筆紀錄";
+        dynamicFieldsContainer.innerHTML = `<div class="col-12"><div class="alert alert-warning fw-bold mb-0">⚠️ 警告：作廢後，此筆紀錄將不再列入任何額度統計與計算。</div></div>`;
+    } else if (action === 'RESTORE') {
+        header.className = "modal-header text-white bg-success";
+        title.innerHTML = `<i class="bi bi-arrow-counterclockwise"></i> 還原資料 [${record[pkField] || recordId}]`;
+        btn.className = "btn btn-success w-100 fw-bold shadow-sm";
+        btn.innerText = "確認還原此筆紀錄";
+        dynamicFieldsContainer.innerHTML = `<div class="col-12"><div class="alert alert-info fw-bold mb-0">💡 提示：還原後，此筆紀錄將重新加入額度計算。</div></div>`;
+    }
+
+    modal.show();
+};
+
+document.addEventListener("DOMContentLoaded", () => {
+    const actionForm = document.getElementById("record-action-form");
+    if(actionForm) {
+        actionForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            if(!checkNetwork()) return;
+
+            const action = document.getElementById('action-type').value;
+            const recordType = document.getElementById('action-record-type').value;
+            const recordId = document.getElementById('action-record-id').value;
+            const btn = document.getElementById('btn-submit-action');
+            
+            const originalBtnText = btn.innerText;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 處理中...';
+
+            // 防護盾：執行異動前，在背景做一次極速同步，確保不發生覆寫衝突
+            await window.smartSync();
+
+            const now = new Date();
+            let updatePayload = {
+                "異動單位": document.getElementById('action-unit').value,
+                "異動藥師員工編號": document.getElementById('action-emp-id').value,
+                "異動藥師姓名": document.getElementById('action-emp-name').value,
+                "異動時間": formatAsDate(now) + " " + formatAsTime(now),
+                "異動備註": document.getElementById('action-note').value.trim()
+            };
+
+            if (action === 'EDIT') {
+                document.querySelectorAll('.editable-field').forEach(input => {
+                    updatePayload[input.getAttribute('data-key')] = input.value;
+                });
+            } else if (action === 'VOID') {
+                updatePayload['作廢'] = 'Y';
+            } else if (action === 'RESTORE') {
+                updatePayload['作廢'] = 'N';
+            }
+
+            // 準備上傳給後端的結構
+            const apiPayload = {
+                table: recordType === 'APP' ? 'Applications' : 'DispenseLogs',
+                keyColumn: recordType === 'APP' ? '申請單號' : '調劑流水號',
+                keyValue: recordId,
+                updateData: updatePayload
+            };
+
+            // 👉 注意：此處需要您的 Google Apps Script 後端支援 'updateRecord' 動作
+            const res = await postData("updateRecord", apiPayload);
+
+            if (res.status === 'success') {
+                // 樂觀更新前端狀態
+                let targetArray = recordType === 'APP' ? State.applications : State.dispenseLogs;
+                let record = targetArray.find(r => r[apiPayload.keyColumn] === recordId);
+                if (record) {
+                    Object.assign(record, updatePayload);
+                }
+
+                // 重繪所有相關畫面
+                if (typeof renderAppHistory === "function") renderAppHistory();
+                if (typeof renderDispenseHistory === "function") renderDispenseHistory();
+                if (typeof refreshSingleDrugDashboard === "function") refreshSingleDrugDashboard();
+
+                bootstrap.Modal.getInstance(document.getElementById('recordActionModal')).hide();
+                alert("✅ 異動執行成功！");
+            } else {
+                alert("❌ 異動失敗：" + res.message);
+            }
+
+            btn.disabled = false;
+            btn.innerText = originalBtnText;
+        });
+    }
+});
