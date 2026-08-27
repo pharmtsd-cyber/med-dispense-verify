@@ -349,8 +349,17 @@ document.addEventListener("DOMContentLoaded", () => {
     btnSubmitApp.innerText = "傳送中...";
     const now = new Date();
 
+    // 👉 核心修正：直接在前端產生精準的 APP 單號，消滅時間差！
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    const hh = String(now.getHours()).padStart(2, '0');
+    const min = String(now.getMinutes()).padStart(2, '0');
+    const ss = String(now.getSeconds()).padStart(2, '0');
+    const generatedAppId = `APP-${yyyy}${mm}${dd}-${hh}${min}${ss}`;
+
     const dataObj = {
-      "申請單號": "", // 👉 修正：這才是申請單的真正 KEY 值名稱
+      "申請單號": generatedAppId, // 👉 寫入前端產生的單號
       "病歷號": inputAppPid.value.trim().toUpperCase(),
       "藥品代碼": State.currentSelectedDrugCode,
       "申請類別": typeEl.value,
@@ -369,7 +378,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const res = await postData("submitApplication", dataObj);
     if(res.status === 'success') {
       alert("申請單已成功送出！");
-      dataObj['申請單號'] = ""; 
+      // 👉 注意：移除了原本 dataObj['申請單號'] = ""; 這一行，確保快取保留正確單號
       State.applications.push(dataObj); 
       renderAppHistory(); 
       
