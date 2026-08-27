@@ -101,9 +101,12 @@ function renderAppHistory() {
       return timeB - timeA; 
   });
   
+// 在 js/application.js 中，替換 renderAppHistory 函數裡面的 forEach 迴圈區塊：
+
   let html = "";
   sortedApps.forEach(app => {
-    if(String(app['藥品代碼']).toUpperCase() === State.currentSelectedDrugCode && app['作廢'] !== 'Y') {
+    // 👉 修正：移除 app['作廢'] !== 'Y' 的過濾條件，讓所有紀錄都顯示
+    if(String(app['藥品代碼']).toUpperCase() === State.currentSelectedDrugCode) {
       const appPid = String(app['病歷號']).toUpperCase();
       if(pidFilter && !appPid.includes(pidFilter)) return;
       
@@ -117,20 +120,35 @@ function renderAppHistory() {
       checkDate.setHours(0, 0, 0, 0);
       const isWithinControl = (checkDate >= cutoffDate);
       
-      const rowClass = isWithinControl ? 'table-warning' : '';
-      const badgeHtml = isWithinControl ? `<br><span class="badge bg-danger mt-1 shadow-sm"><i class="bi bi-shield-lock"></i> 管制期內</span>` : '';
+      const isVoid = app['作廢'] === 'Y';
+      // 👉 若作廢，給予灰色底與刪除線樣式
+      const rowClass = isVoid ? 'bg-light text-muted text-decoration-line-through opacity-75' : (isWithinControl ? 'table-warning' : '');
+      const badgeHtml = (!isVoid && isWithinControl) ? `<br><span class="badge bg-danger mt-1 shadow-sm"><i class="bi bi-shield-lock"></i> 管制期內</span>` : '';
+      const appId = app['申請單號'] || app['收單時間'];
+
+      // 👉 新增異動操作按鈕列
+      const actionButtons = `
+        <div class="btn-group btn-group-sm shadow-sm">
+          <button class="btn btn-outline-primary" onclick="openActionModal('APP', 'EDIT', '${appId}')">修改</button>
+          ${isVoid 
+            ? `<button class="btn btn-outline-success" onclick="openActionModal('APP', 'RESTORE', '${appId}')">還原</button>`
+            : `<button class="btn btn-outline-danger" onclick="openActionModal('APP', 'VOID', '${appId}')">作廢</button>`
+          }
+        </div>
+      `;
 
       html += `<tr class="${rowClass}">
         <td>${formatAsDate(app['收單時間'])} ${formatAsTime(app['收單時間'])}</td>
-        <td class="fw-bold ${isWithinControl ? 'text-danger' : 'text-success'}">${actDateStr || '-'}${badgeHtml}</td>
-        <td class="fw-bold text-primary">${appPid}</td>
-        <td><span class="badge bg-info text-dark">${app['申請類別']}</span></td>
+        <td class="fw-bold ${isVoid ? '' : (isWithinControl ? 'text-danger' : 'text-success')}">${actDateStr || '-'}${badgeHtml}</td>
+        <td class="fw-bold ${isVoid ? '' : 'text-primary'}">${appPid}</td>
+        <td><span class="badge ${isVoid ? 'bg-secondary' : 'bg-info text-dark'}">${app['申請類別']}</span></td>
         <td class="fw-bold">${app['申請天數']} 天 / ${app['申請數量']} 支</td>
-        <td class="small text-muted">${app['處理單位']}</td>
+        <td class="small">${app['處理單位']}</td>
+        <td>${actionButtons}</td> <!-- 插入按鈕 -->
       </tr>`;
     }
   });
-  tbody.innerHTML = html || '<tr><td colspan="6" class="text-muted">查無符合紀錄</td></tr>';
+  tbody.innerHTML = html || '<tr><td colspan="7" class="text-center text-muted">查無符合紀錄</td></tr>';
 }
 
 document.addEventListener("DOMContentLoaded", () => {
