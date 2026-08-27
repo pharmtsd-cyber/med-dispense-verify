@@ -218,7 +218,7 @@
               <button class="btn btn-sm btn-secondary" onclick="renderDispenseHistory()">查詢</button>
             </div>
           </div>
-          <div class="card-body p-0"><div class="table-responsive"><table class="table table-hover align-middle mb-0 text-center"><thead class="table-light small"><tr><th>作業時間</th><th>病歷號</th><th>類別</th><th>數量</th><th>依據單號</th></tr></thead><tbody id="disp-history-table"></tbody></table></div></div>
+          <div class="card-body p-0"><div class="table-responsive"><table class="table table-hover align-middle mb-0 text-center"><thead class="table-light small"><tr><th>作業時間</th><th>病歷號</th><th>類別</th><th>數量<<thead class="table-light small"><tr><th>作業時間</th><th>病歷號</th><th>類別</th><th>數量</th><th>領/退藥號</th><th>依據單號</th></tr></thead>/th><th>依據單號</th></tr></thead><tbody id="disp-history-table"></tbody></table></div></div>
         </div>
       </div>
 
@@ -285,7 +285,7 @@
   </div>
 
   <!-- 👉 新增：無條碼手動輸入的專屬表單視窗 -->
-  <div class="modal fade" id="manualDispenseModalElement" tabindex="-1">
+<div class="modal fade" id="manualDispenseModalElement" tabindex="-1">
     <div class="modal-dialog">
       <div class="modal-content">
         <div class="modal-header bg-secondary text-white">
@@ -302,9 +302,16 @@
               <label class="form-label fw-bold">數量 <span class="text-danger">*</span></label>
               <input type="number" id="manual-qty" class="form-control" required min="1">
             </div>
-            <div class="mb-3">
-              <label class="form-label fw-bold" id="manual-no-label">領藥號 / 退藥號</label>
-              <input type="text" id="manual-no" class="form-control">
+            <!-- 👉 新增：將領藥號與退藥號並排 -->
+            <div class="row g-2 mb-3">
+              <div class="col-6">
+                <label class="form-label fw-bold">領藥號</label>
+                <input type="text" id="manual-no" class="form-control">
+              </div>
+              <div class="col-6" id="manual-ret-no-group">
+                <label class="form-label fw-bold">退藥號 <span class="text-danger">*</span></label>
+                <input type="text" id="manual-ret-no" class="form-control">
+              </div>
             </div>
             <div class="mb-4">
               <label class="form-label fw-bold">備註 / 退藥理由 <span class="text-muted small">(選填)</span></label>
