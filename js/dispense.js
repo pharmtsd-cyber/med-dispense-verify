@@ -69,18 +69,16 @@ window.renderDispenseHistory = function() {
             if(startStr && logDateStr < startStr) return;
             if(endStr && logDateStr > endStr) return;
 
-            // 👉 修正：判斷字眼改為 '調劑'
             const isDispense = log['調劑類別'] === '調劑';
             
             const basisId = log['依據單號'];
             let basisHtml = '-';
-            if (basisId && basisId !== '手動' && basisId !== '退藥紀錄' && basisId !== '退藥無依據') {
+            if (basisId && basisId !== '手動無單號' && basisId !== '退藥紀錄' && basisId !== '退藥無依據') {
                 basisHtml = `<button class="btn btn-sm btn-outline-primary py-0 px-2 fw-bold" onclick="showAppDetails('${basisId}')" style="font-size: 0.8rem; border-radius: 12px;"><i class="bi bi-file-earmark-text"></i> ${basisId.substring(0, 12)}${basisId.length > 12 ? '...' : ''}</button>`;
             } else if (basisId) {
                 basisHtml = `<span class="small text-muted">${basisId}</span>`;
             }
 
-            // 數量直接讀取資料庫存好的正負數 (+2 或 -2)
             html += `<tr>
                 <td>${logDateStr} ${formatAsTime(log['調劑時間'])}</td>
                 <td class="fw-bold text-primary">${logPid}</td>
@@ -148,37 +146,28 @@ if(barcodeInput) {
             const typeEl = document.querySelector('input[name="disp-type"]:checked');
             const type = typeEl ? typeEl.value : '調劑';
             
-            // 👉 讀取畫面上的備註欄位
             let note = document.getElementById("disp-note-input") ? document.getElementById("disp-note-input").value.trim() : "";
             
-            // 👉 退藥強制攔截機制：必須輸入退藥號與理由
             if (type === '退藥') {
                 const retNo = prompt("🔄 您選擇了【退藥作業】\n請輸入「退藥號」：");
                 if (!retNo) {
                     barcodeInput.value = "";
-                    return; // 放棄退藥
+                    return; 
                 }
-                no = retNo; // 覆蓋條碼原有的領藥號，改存退藥號
-                
-                if (!note) {
-                    note = prompt("請輸入「退藥理由」(必填)：");
-                    if (!note) {
-                        alert("⛔ 退藥必須填寫理由！操作已取消。");
-                        barcodeInput.value = "";
-                        return;
-                    }
-                }
+                no = retNo; 
+                // 👉 取消退藥理由必填檢查
             }
             
             isProcessingDispense = true;
             barcodeInput.disabled = true;
             
-            await executeDispenseFlow(pid, qty, type, no, note);
+            // 👉 條碼作業：傳入 "條碼" 參數
+            await executeDispenseFlow(pid, qty, type, no, note, "條碼");
             
             isProcessingDispense = false;
             barcodeInput.disabled = false;
             barcodeInput.value = ""; 
-            if(document.getElementById("disp-note-input")) document.getElementById("disp-note-input").value = ""; // 清空備註
+            if(document.getElementById("disp-note-input")) document.getElementById("disp-note-input").value = ""; 
             barcodeInput.focus();
           } else {
             showDispenseResult("error", "⛔ 條碼格式錯誤！請確認刷入的是完整的二維條碼。");
@@ -188,38 +177,66 @@ if(barcodeInput) {
     });
 }
 
-window.manualDispenseModal = async function() {
-  if(isProcessingDispense) return; 
-  
-  const typeEl = document.querySelector('input[name="disp-type"]:checked');
-  const type = typeEl ? typeEl.value : '調劑';
-  
-  const pid = prompt("請輸入病歷號：");
-  if(!pid) return;
-  const qtyStr = prompt("請輸入數量 (數字)：");
-  if(!qtyStr || isNaN(qtyStr)) return;
-  
-  // 👉 依據模式要求輸入領藥號或退藥號
-  const no = prompt(`請輸入 ${type === '調劑' ? '領藥號' : '退藥號'}：`);
-  if (!no && type === '退藥') {
-      alert("⛔ 退藥必須填寫退藥號！");
-      return;
-  }
-  
-  const note = prompt(`請輸入 ${type === '調劑' ? '調劑備註' : '退藥理由 (必填)'}：`);
-  if(type === '退藥' && !note) {
-      alert("⛔ 退藥必須填寫理由！");
-      return;
-  }
-  
-  isProcessingDispense = true;
-  document.getElementById("disp-check-result").classList.remove("d-none-important");
-  document.getElementById("disp-check-result").className = "alert alert-info";
-  document.getElementById("disp-check-result").innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> 正在處理...';
-  
-  await executeDispenseFlow(pid.trim().toUpperCase(), parseInt(qtyStr), type, no || "手動無單號", note || "");
-  isProcessingDispense = false;
+// 👉 呼叫手動作業 Modal 表單
+window.manualDispenseModal = function() {
+    if(isProcessingDispense) return; 
+    
+    const typeEl = document.querySelector('input[name="disp-type"]:checked');
+    const type = typeEl ? typeEl.value : '調劑';
+    
+    // 動態設定表單的必填提示
+    const noLabel = document.getElementById("manual-no-label");
+    const noInput = document.getElementById("manual-no");
+    if(noLabel && noInput) {
+        if (type === '退藥') {
+            noLabel.innerHTML = '退藥號 <span class="text-danger">*</span>';
+            noInput.required = true;
+        } else {
+            noLabel.innerHTML = '領藥號';
+            noInput.required = false;
+        }
+    }
+    
+    const form = document.getElementById("manual-dispense-form");
+    if(form) form.reset();
+    
+    const modalEl = document.getElementById('manualDispenseModalElement');
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
 };
+
+// 👉 綁定手動作業表單的送出事件
+document.addEventListener("DOMContentLoaded", () => {
+    const manualForm = document.getElementById("manual-dispense-form");
+    if(manualForm) {
+        manualForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            if(isProcessingDispense) return;
+            
+            const typeEl = document.querySelector('input[name="disp-type"]:checked');
+            const type = typeEl ? typeEl.value : '調劑';
+            
+            const pid = document.getElementById("manual-pid").value.trim().toUpperCase();
+            const qty = parseInt(document.getElementById("manual-qty").value);
+            const no = document.getElementById("manual-no").value.trim();
+            const note = document.getElementById("manual-note").value.trim();
+            
+            // 隱藏 Modal
+            const modalEl = document.getElementById('manualDispenseModalElement');
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if(modal) modal.hide();
+            
+            isProcessingDispense = true;
+            document.getElementById("disp-check-result").classList.remove("d-none-important");
+            document.getElementById("disp-check-result").className = "alert alert-info";
+            document.getElementById("disp-check-result").innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> 正在處理...';
+            
+            // 👉 手動作業：傳入 "手動" 參數
+            await executeDispenseFlow(pid, qty, type, no || "手動無單號", note, "手動");
+            isProcessingDispense = false;
+        });
+    }
+});
 
 function showDispenseResult(status, htmlMsg) {
     const resDiv = document.getElementById("disp-check-result");
@@ -233,7 +250,8 @@ function showDispenseResult(status, htmlMsg) {
     }
 }
 
-async function executeDispenseFlow(pid, qty, type, no, note) {
+// 👉 接收 inputMethod (手動或條碼) 參數
+async function executeDispenseFlow(pid, qty, type, no, note, inputMethod) {
     let checkResult = performDispenseCalculation(pid, qty, type);
     
     if (!checkResult.success && type === '調劑') {
@@ -253,24 +271,26 @@ async function executeDispenseFlow(pid, qty, type, no, note) {
     const now = new Date();
     const user = JSON.parse(sessionStorage.getItem("currentUser"));
     
-    // 👉 核心邏輯：依照您的需求，計算庫存的「正負差值」
     const signedQty = (type === '調劑') ? -Math.abs(qty) : Math.abs(qty);
     
     const dataObj = {
         "病歷號": pid,
         "藥品代碼": State.currentSelectedDrugCode,
         "調劑類別": type,
+        // 👉 新增並補齊漏掉的關鍵欄位
+        "選擇調劑或退藥": type === '調劑' ? '調劑發藥' : '退藥作業',
+        "手動或條碼": inputMethod, // '手動' 或 '條碼'
         "調劑數量": type === '調劑' ? Math.abs(qty) : 0, 
         "退藥數量": type === '退藥' ? Math.abs(qty) : 0,
-        "數量": signedQty,  // 👉 資料庫這裡會寫入 -2 或 +2
+        "數量": signedQty,
         "依據單號": checkResult.basisId,
-        "領藥號": no,       // 👉 發藥存領藥號，退藥存退藥號
+        "領藥號": no,      
         "調劑日期": formatAsDate(now),
         "調劑時間": formatAsDate(now) + " " + formatAsTime(now),
         "藥師員工編號": user.id,
         "藥師姓名": user.name,
         "處理單位": user.unit || "",
-        "調劑備註": note    // 👉 寫入備註或退藥理由
+        "調劑備註": note    
     };
 
     State.dispenseLogs.unshift(dataObj);
@@ -335,7 +355,6 @@ function performDispenseCalculation(pid, qty, type) {
                 log['作廢'] !== 'Y' && 
                 log['依據單號'] === basisId) {
                 
-                // 👉 修正：讀取絕對值來計算已被發出的餘額 (退藥時會自動扣減回補)
                 usedQty += parseInt(log['調劑數量'] || 0);
                 usedQty -= parseInt(log['退藥數量'] || 0);
             }
