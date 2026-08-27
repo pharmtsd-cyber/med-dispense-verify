@@ -196,7 +196,14 @@
         <div class="card shadow-sm mb-4 border-success" id="disp-scan-card">
           <div class="card-body bg-success bg-opacity-10" id="disp-scan-body">
             <h5 class="text-success fw-bold" id="disp-scan-title"><i class="bi bi-upc-scan"></i> 條碼掃描區 (調劑模式 - 即時寫入)</h5>
-            <input type="text" id="barcode-input" class="form-control mt-2 border-success form-control-lg text-uppercase fw-bold text-center" placeholder="確認上方設定無誤後，請刷入藥袋條碼..." autofocus>
+            <div class="row g-2 mt-1">
+              <div class="col-md-3">
+                <input type="text" id="disp-note-input" class="form-control form-control-lg border-success" placeholder="📝 填寫備註 / 退藥理由">
+              </div>
+              <div class="col-md-9">
+                <input type="text" id="barcode-input" class="form-control border-success form-control-lg text-uppercase fw-bold text-center" placeholder="確認設定無誤後，請刷入藥袋條碼..." autofocus>
+              </div>
+            </div>
           </div>
         </div>
         
