@@ -343,7 +343,6 @@ async function executeDispenseFlow(pid, qty, type, no, retNo, note, inputMethod)
         "調劑數量": type === '調劑' ? Math.abs(qty) : 0, 
         "退藥數量": type === '退藥' ? Math.abs(qty) : 0,
         "數量": signedQty,
-        // 👉 統一使用 申請單號 寫入資料庫
         "申請單號": checkResult.basisId, 
         "領藥號": no,
         "退藥號": retNo,      
@@ -352,7 +351,7 @@ async function executeDispenseFlow(pid, qty, type, no, retNo, note, inputMethod)
         "藥師員工編號": user.id,
         "藥師姓名": user.name,
         "處理單位": user.unit || "",
-        "調劑備註": note    
+        "調劑退藥理由": note    
     };
 
     State.dispenseLogs.unshift(dataObj);
