@@ -7,9 +7,17 @@ window.openDispenseForm = function() {
     const drug = State.activeDrugs.find(d => String(d['藥品代碼']).toUpperCase() === State.currentSelectedDrugCode);
     const user = JSON.parse(sessionStorage.getItem("currentUser"));
 
-    document.getElementById("disp-drug-name").innerText = `${drug['藥品名稱']} (${drug['藥品代碼']})`;
-    document.getElementById("disp-pharmacist-id").value = user.id;
-    document.getElementById("disp-pharmacist-name").value = user.name;
+    // 👉 修正：精準對應 HTML 中的 ID (disp-form-drug-name)，並加上防呆檢查
+    const drugNameEl = document.getElementById("disp-form-drug-name") || document.getElementById("disp-drug-name");
+    if(drugNameEl) {
+        drugNameEl.innerText = `${drug['藥品名稱']} (${drug['藥品代碼']})`;
+    }
+    
+    const pharIdEl = document.getElementById("disp-pharmacist-id");
+    if(pharIdEl) pharIdEl.value = user.id;
+    
+    const pharNameEl = document.getElementById("disp-pharmacist-name");
+    if(pharNameEl) pharNameEl.value = user.name;
     
     // 預設篩選區間：[今天 - 管制天數] ~ [今天]
     const today = new Date();
@@ -25,12 +33,16 @@ window.openDispenseForm = function() {
     const histPidInput = document.getElementById("disp-hist-pid");
     if(histPidInput) histPidInput.value = "";
     
-    document.getElementById("disp-check-result").classList.add("d-none-important");
-    document.getElementById("barcode-input").value = "";
+    const resultDiv = document.getElementById("disp-check-result");
+    if(resultDiv) resultDiv.classList.add("d-none-important");
+    
+    const barcodeInput = document.getElementById("barcode-input");
+    if(barcodeInput) barcodeInput.value = "";
     
     switchView('dispense');
-    renderDispenseHistory(); // 修改為與 HTML 對應的名稱
-    document.getElementById("barcode-input").focus();
+    renderDispenseHistory(); 
+    
+    if(barcodeInput) barcodeInput.focus();
 };
 
 // 函數名稱統一為 renderDispenseHistory 確保與 HTML 的 onclick 綁定一致
