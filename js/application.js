@@ -4,6 +4,9 @@ let lockedStartDateStr = "";
 let absoluteMaxEndDate = new Date(0); 
 let globalMaxDays = 0;
 let globalMaxQty = 0;
+// 👉 新增全域變數，紀錄本次療程「還能展延多少」
+let cycleRemainingDays = 0; 
+let cycleRemainingQty = 0;
 
 function openApplicationForm() {
   if(!State.currentSelectedDrugCode) return;
@@ -110,12 +113,10 @@ function renderAppHistory() {
       if(startStr && actDateStr < startStr) return;
       if(endStr && actDateStr > endStr) return;
 
-      // 👉 判斷此單據是否落在「本次管制天數」內
       const checkDate = new Date(actDateStr);
       checkDate.setHours(0, 0, 0, 0);
       const isWithinControl = (checkDate >= cutoffDate);
       
-      // 👉 視覺強化標示
       const rowClass = isWithinControl ? 'table-warning' : '';
       const badgeHtml = isWithinControl ? `<br><span class="badge bg-danger mt-1 shadow-sm"><i class="bi bi-shield-lock"></i> 管制期內</span>` : '';
 
@@ -152,7 +153,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
       await window.smartSync(); 
 
-      // 👉 核心：自動將病歷號帶入查詢，並且【清空日期條件】，讓快取內所有的該病患紀錄都能顯示！
       document.getElementById("app-hist-pid").value = pid; 
       document.getElementById("app-hist-start").value = "";
       document.getElementById("app-hist-end").value = "";
@@ -222,44 +222,52 @@ document.addEventListener("DOMContentLoaded", () => {
 
         lockedStartDateStr = latestActDateStr.replace(/\//g, '-');
         
-        let cycleAppCount = 0;
+        // 👉 核心邏輯升級：精準計算「同一個療程」已經開了多少總天數與總量
+        let cycleTotalQty = 0;
+        let cycleTotalDays = 0;
+        
         State.applications.forEach(app => {
             if (String(app['病歷號']).toUpperCase() === pid && String(app['藥品代碼']).toUpperCase() === drugCode && app['作廢'] !== 'Y') {
                 let thisActDateStr = formatAsDate(app['啟用日期']);
                 if (!thisActDateStr) thisActDateStr = formatAsDate(app['收單時間']);
-                if (thisActDateStr === latestActDateStr) cycleAppCount++;
+                // 只要啟用日期一樣，就算在同一個療程 (初次+展延)
+                if (thisActDateStr === latestActDateStr) {
+                    cycleTotalQty += parseInt(app['申請數量'] || 0);
+                    cycleTotalDays += parseInt(app['申請天數'] || 0);
+                }
             }
         });
 
-        const initialQty = parseInt(latestApp['申請數量'] || 0);
-        const initialDays = parseInt(latestApp['申請天數'] || 0);
-        const isMaxedOut = (initialQty >= globalMaxQty || initialDays >= globalMaxDays);
-        const hasUsedExtension = (cycleAppCount >= 2); 
+        // 算出本次展延還能開多少 (全局上限 - 已經開過的總和)
+        cycleRemainingQty = Math.max(0, globalMaxQty - cycleTotalQty);
+        cycleRemainingDays = Math.max(0, globalMaxDays - cycleTotalDays);
+
+        const isMaxedOut = (cycleRemainingQty <= 0 || cycleRemainingDays <= 0);
 
         radios.forEach(r => {
             const catType = r.getAttribute("data-cat-type");
             if (catType === "BREAK") {
                 r.disabled = hasUsedBreakInControlPeriod;
             } else if (catType === "EXTENSION") {
-                r.disabled = (isMaxedOut || hasUsedExtension);
+                r.disabled = isMaxedOut;
             } else {
                 r.disabled = true; 
             }
         });
 
-        if (isMaxedOut || hasUsedExtension) {
+        if (isMaxedOut) {
             if (hasUsedBreakInControlPeriod) {
-                document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-x-circle text-danger fw-bold"></i> ⛔ 本次療程已達額度，且管制期內已使用過突破限制，無法再次申請！';
-                alert(`⛔ 阻擋：此病患本次療程已達額度，且在管制期內已經申請過一次「突破限制」，無法再次申請。`);
+                document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-x-circle text-danger fw-bold"></i> ⛔ 本次療程已達額度，且管制期內已使用過複陽(突破)，無法再次申請！';
+                alert(`⛔ 阻擋：此病患本次療程已達額度，且在管制期內已經申請過一次「複陽 / 突破限制」，無法再次申請。`);
             } else {
-                document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-exclamation-triangle text-danger fw-bold"></i> ⚠️ 本次療程已達全局額度，僅能選擇「突破限制」建立新療程。';
-                alert(`此病患本次療程已達全局額度，或已申請過展延。\n僅能選擇「🔴 突破限制」之類別建立新療程。`);
+                document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-exclamation-triangle text-danger fw-bold"></i> ⚠️ 本次療程之展延額度已用盡，僅能選擇「複陽 / 突破限制」建立新療程。';
+                alert(`此病患本次療程的額度已經用盡。\n若有醫療需求，僅能選擇「🔴 複陽 / 突破限制」建立新的獨立療程。`);
             }
         } else {
             if (hasUsedBreakInControlPeriod) {
-                document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-info-circle text-primary fw-bold"></i> 🔍 尚有一般額度可延伸 (突破限制額度已用罄)。';
+                document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-info-circle text-primary fw-bold"></i> 🔍 尚有展延額度可使用 (複陽額度已用罄)。';
             } else {
-                document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-info-circle text-primary fw-bold"></i> 🔍 已找到近期紀錄，可選擇「一般延伸」或「突破限制」。';
+                document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-info-circle text-primary fw-bold"></i> 🔍 已找到近期紀錄，可選擇「展延」或「複陽(突破)」。';
             }
         }
       }
@@ -284,8 +292,8 @@ document.addEventListener("DOMContentLoaded", () => {
       
       let badgeHtml = '';
       if(catType === 'INITIAL') badgeHtml = '<span class="badge bg-primary ms-2">初次專用</span>';
-      else if(catType === 'EXTENSION') badgeHtml = '<span class="badge bg-warning text-dark ms-2">合併前次額度與日期</span>';
-      else if(catType === 'BREAK') badgeHtml = '<span class="badge bg-danger ms-2">新療程(獨立額度/防重疊)</span>';
+      else if(catType === 'EXTENSION') badgeHtml = '<span class="badge bg-warning text-dark ms-2">展延 (扣除初次後之剩餘額度)</span>';
+      else if(catType === 'BREAK') badgeHtml = '<span class="badge bg-danger ms-2">複陽/新療程 (獲得全新額度)</span>';
 
       document.getElementById("app-type-desc").innerHTML = `<i class="bi bi-info-circle"></i> 說明：${desc} ${badgeHtml}`;
       btnSubmitApp.disabled = false;
@@ -297,15 +305,18 @@ document.addEventListener("DOMContentLoaded", () => {
       inputAppDays.readOnly = false;
       inputAppQty.readOnly = false;
 
+      // 👉 核心修復：當選擇展延時，自動帶入「剩餘可展延數量」，而不是合併上限
       if (catType === "EXTENSION" && lockedStartDateStr) {
-          inputAppDays.value = globalMaxDays;
-          inputAppQty.value = globalMaxQty;
-          document.getElementById("lbl-max-days").innerText = `(合併上限 ${globalMaxDays})`;
-          document.getElementById("lbl-max-qty").innerText = `(合併上限 ${globalMaxQty})`;
+          inputAppDays.value = Math.min(cDefDays, cycleRemainingDays);
+          inputAppQty.value = Math.min(cDefQty, cycleRemainingQty);
+          
+          document.getElementById("lbl-max-days").innerText = `(最多可再展延 ${cycleRemainingDays})`;
+          document.getElementById("lbl-max-qty").innerText = `(最多可再展延 ${cycleRemainingQty})`;
           
           document.getElementById("app-start-date").value = lockedStartDateStr;
           document.getElementById("app-start-date").readOnly = true;
       } else {
+          // 👉 初次或複陽，則帶入該類別預設值
           inputAppDays.value = cDefDays;
           inputAppQty.value = cDefQty;
           document.getElementById("lbl-max-days").innerText = `(全局上限 ${globalMaxDays})`;
@@ -314,6 +325,7 @@ document.addEventListener("DOMContentLoaded", () => {
           document.getElementById("app-start-date").readOnly = false;
           
           const today = new Date();
+          // 如果是複陽(新療程)，強制啟用日期必須在舊療程結束之後
           if (catType === "BREAK" && window.currentAbsoluteMaxEndDate > today) {
               document.getElementById("app-start-date").value = window.currentAbsoluteMaxEndDate.toISOString().split('T')[0];
           } else {
@@ -327,21 +339,34 @@ document.addEventListener("DOMContentLoaded", () => {
     e.preventDefault();
     if(!checkNetwork()) return;
     
-    if(parseInt(inputAppDays.value) > globalMaxDays || parseInt(inputAppQty.value) > globalMaxQty) {
-        alert(`申請天數或數量不可超過全局上限！\n最大天數: ${globalMaxDays}\n最大數量: ${globalMaxQty}`); 
-        return;
+    const typeEl = document.querySelector('input[name="app-type"]:checked');
+    const catType = typeEl.getAttribute("data-cat-type");
+    
+    const reqDays = parseInt(inputAppDays.value);
+    const reqQty = parseInt(inputAppQty.value);
+
+    // 👉 核心驗證：分開驗證展延單與初次/複陽單
+    if (catType === "EXTENSION") {
+        if(reqDays > cycleRemainingDays || reqQty > cycleRemainingQty) {
+            alert(`⛔ 展延申請超額！\n本次療程最多僅能再展延:\n天數: ${cycleRemainingDays} 天\n數量: ${cycleRemainingQty} 支`); 
+            return;
+        }
+    } else {
+        if(reqDays > globalMaxDays || reqQty > globalMaxQty) {
+            alert(`⛔ 申請天數或數量不可超過全局上限！\n最大天數: ${globalMaxDays}\n最大數量: ${globalMaxQty}`); 
+            return;
+        }
     }
     
     const unitEl = document.querySelector('input[name="app-unit-radio"]:checked');
     if(!unitEl) { alert("請選擇處理單位！"); return; }
 
-    const typeEl = document.querySelector('input[name="app-type"]:checked');
-    const catType = typeEl.getAttribute("data-cat-type");
     const startDateRaw = document.getElementById("app-start-date").value;
     const startDateStr = startDateRaw ? startDateRaw.replace(/-/g, '/') : formatAsDate(new Date()); 
     
+    // 防呆：複陽療程的啟用日期不能與舊療程重疊
     if (catType === "BREAK" && new Date(startDateStr) < window.currentAbsoluteMaxEndDate) {
-        alert(`⛔ 突破限制(新療程)的啟用日期不可與前次重疊！\n前次療程將於 ${formatAsDate(window.currentAbsoluteMaxEndDate)} 結束，您必須選取此日期或更晚的日期。`);
+        alert(`⛔ 複陽/新療程的啟用日期不可與前次重疊！\n前次療程將於 ${formatAsDate(window.currentAbsoluteMaxEndDate)} 結束，您必須選取此日期或更晚的日期。`);
         return;
     }
     
@@ -349,7 +374,6 @@ document.addEventListener("DOMContentLoaded", () => {
     btnSubmitApp.innerText = "傳送中...";
     const now = new Date();
 
-    // 👉 核心修正：直接在前端產生精準的 APP 單號，消滅時間差！
     const yyyy = now.getFullYear();
     const mm = String(now.getMonth() + 1).padStart(2, '0');
     const dd = String(now.getDate()).padStart(2, '0');
@@ -359,7 +383,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const generatedAppId = `APP-${yyyy}${mm}${dd}-${hh}${min}${ss}`;
 
     const dataObj = {
-      "申請單號": generatedAppId, // 👉 寫入前端產生的單號
+      "申請單號": generatedAppId,
       "病歷號": inputAppPid.value.trim().toUpperCase(),
       "藥品代碼": State.currentSelectedDrugCode,
       "申請類別": typeEl.value,
@@ -377,8 +401,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const res = await postData("submitApplication", dataObj);
     if(res.status === 'success') {
-      alert("申請單已成功送出！");
-      // 👉 注意：移除了原本 dataObj['申請單號'] = ""; 這一行，確保快取保留正確單號
+      alert("✅ 申請單已成功送出！");
       State.applications.push(dataObj); 
       renderAppHistory(); 
       
