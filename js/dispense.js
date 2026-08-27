@@ -18,6 +18,12 @@ window.openDispenseForm = function() {
     const pharNameEl = document.getElementById("disp-pharmacist-name");
     if(pharNameEl) pharNameEl.value = user.name;
     
+    // 👉 核心修正 1：每次打開表單，預設選取登入時的處理單位
+    if(user.unit) {
+        const unitRadio = document.querySelector(`input[name="disp-unit-radio"][value="${user.unit}"]`);
+        if(unitRadio) unitRadio.checked = true;
+    }
+    
     const today = new Date();
     const controlDays = parseInt(drug['管制天數'] || 14);
     const startDate = new Date();
@@ -330,13 +336,18 @@ async function executeDispenseFlow(pid, qty, type, no, retNo, note, inputMethod)
 
     const now = new Date();
     const user = JSON.parse(sessionStorage.getItem("currentUser"));
+    const signedQty = (type === '調劑') ? -Math.abs(qty) : Math.abs(qty);
+    
+    // 👉 核心修正 2：讀取表單上被選中的「處理單位」按鈕，若無則降級使用 session 單位
+    const unitEl = document.querySelector('input[name="disp-unit-radio"]:checked');
+    const selectedUnit = unitEl ? unitEl.value : (user.unit || "");
     
     let basisIdsUsed = [];
 
-    // 👉 核心改動：將一筆大額度的調劑，拆分成多筆 LOG 對應到不同的單號 (跨單扣帳)
+    // 跨單湊合處理
     for (let plan of checkResult.deductionPlan) {
         const splitQty = plan.deductQty;
-        const signedQty = (type === '調劑') ? -Math.abs(splitQty) : Math.abs(splitQty);
+        const splitSignedQty = (type === '調劑') ? -Math.abs(splitQty) : Math.abs(splitQty);
         const basisId = plan.basisId;
         basisIdsUsed.push(basisId.substring(0,10));
         
@@ -349,7 +360,7 @@ async function executeDispenseFlow(pid, qty, type, no, retNo, note, inputMethod)
             "手動或條碼": inputMethod,
             "調劑數量": type === '調劑' ? Math.abs(splitQty) : 0, 
             "退藥數量": type === '退藥' ? Math.abs(splitQty) : 0,
-            "數量": signedQty,
+            "數量": splitSignedQty,
             "申請單號": basisId, 
             "領藥號": no,
             "退藥號": retNo,      
@@ -357,14 +368,12 @@ async function executeDispenseFlow(pid, qty, type, no, retNo, note, inputMethod)
             "調劑時間": formatAsDate(now) + " " + formatAsTime(now),
             "藥師員工編號": user.id,
             "藥師姓名": user.name,
-            "處理單位": user.unit || "",
+            "處理單位": selectedUnit, // 👉 成功套用畫面上選擇的單位
             "調劑退藥理由": note    
         };
 
-        // 樂觀更新：立刻寫入前端陣列
         State.dispenseLogs.unshift(dataObj);
 
-        // 背景非同步上傳拆分後的各筆 LOG
         postData("submitDispense", dataObj).then(res => {
             if(res.status !== 'success') {
                 console.error("背景上傳失敗", res);
@@ -378,7 +387,6 @@ async function executeDispenseFlow(pid, qty, type, no, retNo, note, inputMethod)
     document.getElementById("disp-hist-pid").value = pid;
     renderDispenseHistory();
 
-    // 彙整顯示跨單結果
     const uniqueBasisIds = [...new Set(basisIdsUsed)].join(', ');
 
     if (type === '調劑') {
@@ -391,7 +399,6 @@ async function executeDispenseFlow(pid, qty, type, no, retNo, note, inputMethod)
     return true; 
 }
 
-// 👉 核心演算法：支援跨單湊合的計算引擎
 function performDispenseCalculation(pid, qty, type, originalNo) {
     const drugCode = State.currentSelectedDrugCode;
     const drug = State.activeDrugs.find(d => String(d['藥品代碼']).toUpperCase() === drugCode);
@@ -403,7 +410,6 @@ function performDispenseCalculation(pid, qty, type, originalNo) {
     });
 
     if (type === '退藥') {
-        // 退藥 LIFO：越新的單據優先被退回額度
         allPatientApps.sort((a,b) => {
             const dateA = new Date(formatAsDate(a['啟用日期'] || a['收單時間']));
             const dateB = new Date(formatAsDate(b['啟用日期'] || b['收單時間']));
@@ -432,7 +438,6 @@ function performDispenseCalculation(pid, qty, type, originalNo) {
             return { success: false, msg: `退藥失敗！欲退數量 (${qty}) 大於此病患目前可退的總發出額度 (${totalDispensed})。` };
         }
 
-        // 如果有指定領藥號，將有關聯的申請單排到最前面優先退款
         if (originalNo && originalNo !== "手動無單號") {
              let involvedBasisIds = new Set();
              State.dispenseLogs.forEach(log => {
@@ -447,7 +452,6 @@ function performDispenseCalculation(pid, qty, type, originalNo) {
              });
         }
 
-        // 開始拆分退藥數量
         let remainingQtyToReturn = qty;
         let returnPlan = [];
 
@@ -461,12 +465,9 @@ function performDispenseCalculation(pid, qty, type, originalNo) {
         return { success: true, deductionPlan: returnPlan, totalAvailableRemaining: totalDispensed };
     }
 
-    
-// ==== 調劑發藥 (常規檢核邏輯) ====
     const controlDays = parseInt(drug['管制天數'] || 14);
     const today = new Date();
     today.setHours(0,0,0,0);
-    
     const cutoffDate = new Date(today);
     cutoffDate.setDate(cutoffDate.getDate() - controlDays);
     
@@ -474,12 +475,9 @@ function performDispenseCalculation(pid, qty, type, originalNo) {
         const actDateStr = formatAsDate(app['啟用日期']) || formatAsDate(app['收單時間']);
         const actDate = new Date(actDateStr);
         actDate.setHours(0,0,0,0);
-        
-        // 👉 核心補強：必須大於管制界線 (沒過期)，且必須小於等於今天 (可用日期已生效，不可預支未來單)
         return actDate >= cutoffDate && actDate <= today; 
     });
 
-    // 調劑 FIFO：越舊的單據優先扣除額度
     validApps.sort((a,b) => {
         const dateA = new Date(formatAsDate(a['啟用日期'] || a['收單時間']));
         const dateB = new Date(formatAsDate(b['啟用日期'] || b['收單時間']));
@@ -489,7 +487,6 @@ function performDispenseCalculation(pid, qty, type, originalNo) {
     let totalRem = 0;
     let appBalances = [];
 
-    // 計算所有有效單據各自的剩餘量
     for (let app of validApps) {
         const basisId = app['申請單號'] || app['收單時間'];
         let usedQty = 0;
@@ -522,7 +519,6 @@ function performDispenseCalculation(pid, qty, type, originalNo) {
         return { success: false, msg: `數量不足！刷入量 (${qty}) 大於此病患目前已生效可用單據之總餘額 (${totalRem})。<br><small>請確認是否有跨療程或未生效的申請單。</small>` };
     }
 
-    // 開始拆分發藥數量
     let remainingQtyToDeduct = qty;
     let deductionPlan = [];
 
