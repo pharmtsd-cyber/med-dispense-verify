@@ -75,12 +75,10 @@ window.renderDispenseHistory = function() {
             if(startStr && logDateStr < startStr) return;
             if(endStr && logDateStr > endStr) return;
 
-            // 👉 智慧備援 1：如果沒有調劑類別，就去抓「選擇調劑或退藥」欄位
             const logTypeStr = log['調劑類別'] || log['選擇調劑或退藥'] || '調劑';
             const isDispense = logTypeStr.includes('調劑');
             const displayBadgeStr = isDispense ? '調劑' : '退藥';
             
-            // 👉 智慧備援 2：如果數量沒有抓到，就用調劑數量/退藥數量自己算
             let displayQty = log['數量'];
             if (displayQty === undefined || displayQty === "") {
                 const dQty = parseInt(log['調劑數量']) || 0;
@@ -88,7 +86,6 @@ window.renderDispenseHistory = function() {
                 displayQty = isDispense ? -(dQty) : rQty;
             }
 
-            // 👉 智慧備援 3：單號防呆顯示
             const basisId = log['依據單號'];
             let basisHtml = '-';
             
@@ -119,7 +116,8 @@ window.renderDispenseHistory = function() {
 };
 
 window.showAppDetails = function(appId) {
-    const app = State.applications.find(a => a['申請單號'] === appId || a['收單時間'] === appId);
+    // 👉 修正：全面使用「依據單號」來找原申請單
+    const app = State.applications.find(a => a['依據單號'] === appId || a['收單時間'] === appId);
     const contentDiv = document.getElementById("appDetailContent");
 
     if (!app) {
@@ -128,7 +126,7 @@ window.showAppDetails = function(appId) {
         contentDiv.innerHTML = `
             <table class="table table-bordered table-sm mb-0 align-middle">
                 <tbody>
-                    <tr><th class="bg-light text-end" width="30%">申請單號</th><td class="text-secondary font-monospace small">${app['申請單號'] || '-'}</td></tr>
+                    <tr><th class="bg-light text-end" width="30%">申請單號</th><td class="text-secondary font-monospace small">${app['依據單號'] || '-'}</td></tr>
                     <tr><th class="bg-light text-end">病歷號</th><td class="fw-bold text-primary fs-6">${app['病歷號']}</td></tr>
                     <tr><th class="bg-light text-end">藥品代碼</th><td class="fw-bold">${app['藥品代碼']}</td></tr>
                     <tr><th class="bg-light text-end">申請類別</th><td><span class="badge bg-info text-dark">${app['申請類別']}</span></td></tr>
@@ -336,6 +334,7 @@ async function executeDispenseFlow(pid, qty, type, no, retNo, note, inputMethod)
     const signedQty = (type === '調劑') ? -Math.abs(qty) : Math.abs(qty);
     
     const dataObj = {
+        "調劑流水號": "", // 後端會自動產生 DIS- 流水號
         "病歷號": pid,
         "藥品代碼": State.currentSelectedDrugCode,
         "調劑類別": type,
@@ -344,7 +343,7 @@ async function executeDispenseFlow(pid, qty, type, no, retNo, note, inputMethod)
         "調劑數量": type === '調劑' ? Math.abs(qty) : 0, 
         "退藥數量": type === '退藥' ? Math.abs(qty) : 0,
         "數量": signedQty,
-        "依據單號": checkResult.basisId,
+        "依據單號": checkResult.basisId, // 👉 成功對接 Application 的主鍵
         "領藥號": no,
         "退藥號": retNo,      
         "調劑日期": formatAsDate(now),
@@ -408,12 +407,13 @@ function performDispenseCalculation(pid, qty, type, originalNo) {
                        logTypeStr.includes('調劑');
             });
             if (originalLog) {
-                targetApp = allPatientApps.find(a => (a['申請單號'] || a['收單時間']) === originalLog['依據單號']);
+                // 👉 修正：精準使用「依據單號」來關聯
+                targetApp = allPatientApps.find(a => (a['依據單號'] || a['收單時間']) === originalLog['依據單號']);
             }
         }
 
         if (targetApp) {
-            const basisId = targetApp['申請單號'] || targetApp['收單時間'];
+            const basisId = targetApp['依據單號'] || targetApp['收單時間'];
             let netDispensed = 0;
             State.dispenseLogs.forEach(log => {
                 if (String(log['病歷號']).toUpperCase() === pid && String(log['藥品代碼']).toUpperCase() === drugCode && log['作廢'] !== 'Y' && log['依據單號'] === basisId) {
@@ -427,7 +427,7 @@ function performDispenseCalculation(pid, qty, type, originalNo) {
 
         if (!targetApp) {
             for (let app of allPatientApps) {
-                const basisId = app['申請單號'] || app['收單時間'];
+                const basisId = app['依據單號'] || app['收單時間'];
                 let netDispensed = 0;
                 State.dispenseLogs.forEach(log => {
                     if (String(log['病歷號']).toUpperCase() === pid && String(log['藥品代碼']).toUpperCase() === drugCode && log['作廢'] !== 'Y' && log['依據單號'] === basisId) {
@@ -449,7 +449,7 @@ function performDispenseCalculation(pid, qty, type, originalNo) {
 
         return { 
             success: true, 
-            basisId: targetApp['申請單號'] || targetApp['收單時間'],
+            basisId: targetApp['依據單號'] || targetApp['收單時間'],
             availableRemaining: maxReturnable 
         };
     }
@@ -477,7 +477,8 @@ function performDispenseCalculation(pid, qty, type, originalNo) {
     let availableRemaining = 0;
 
     for (let app of validApps) {
-        const basisId = app['申請單號'] || app['收單時間'];
+        // 👉 修正：使用「依據單號」作為追蹤基準
+        const basisId = app['依據單號'] || app['收單時間'];
         let usedQty = 0;
         
         State.dispenseLogs.forEach(log => {
@@ -510,7 +511,7 @@ function performDispenseCalculation(pid, qty, type, originalNo) {
 
     return { 
         success: true, 
-        basisId: targetApp['申請單號'] || targetApp['收單時間'],
+        basisId: targetApp['依據單號'] || targetApp['收單時間'],
         availableRemaining: availableRemaining 
     };
 }
