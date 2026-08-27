@@ -77,6 +77,14 @@ function renderAppHistory() {
   const sortSelect = document.getElementById("app-hist-sort");
   const sortBy = sortSelect ? sortSelect.value : 'logTime';
   
+  const drug = State.activeDrugs.find(d => String(d['藥品代碼']).toUpperCase() === State.currentSelectedDrugCode);
+  let cutoffDate = new Date(0);
+  if (drug) {
+      cutoffDate = new Date();
+      cutoffDate.setHours(0, 0, 0, 0);
+      cutoffDate.setDate(cutoffDate.getDate() - parseInt(drug['管制天數'] || 14));
+  }
+  
   let sortedApps = [...State.applications].sort((a,b) => {
       if (sortBy === 'actDate') {
           const dateA = new Date(formatAsDate(a['啟用日期'] || a['收單時間']));
@@ -102,9 +110,18 @@ function renderAppHistory() {
       if(startStr && actDateStr < startStr) return;
       if(endStr && actDateStr > endStr) return;
 
-      html += `<tr>
+      // 👉 判斷此單據是否落在「本次管制天數」內
+      const checkDate = new Date(actDateStr);
+      checkDate.setHours(0, 0, 0, 0);
+      const isWithinControl = (checkDate >= cutoffDate);
+      
+      // 👉 視覺強化標示
+      const rowClass = isWithinControl ? 'table-warning' : '';
+      const badgeHtml = isWithinControl ? `<br><span class="badge bg-danger mt-1 shadow-sm"><i class="bi bi-shield-lock"></i> 管制期內</span>` : '';
+
+      html += `<tr class="${rowClass}">
         <td>${formatAsDate(app['收單時間'])} ${formatAsTime(app['收單時間'])}</td>
-        <td class="fw-bold text-success">${actDateStr || '-'}</td>
+        <td class="fw-bold ${isWithinControl ? 'text-danger' : 'text-success'}">${actDateStr || '-'}${badgeHtml}</td>
         <td class="fw-bold text-primary">${appPid}</td>
         <td><span class="badge bg-info text-dark">${app['申請類別']}</span></td>
         <td class="fw-bold">${app['申請天數']} 天 / ${app['申請數量']} 支</td>
@@ -135,14 +152,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
       await window.smartSync(); 
 
+      // 👉 核心：自動將病歷號帶入查詢，並且【清空日期條件】，讓快取內所有的該病患紀錄都能顯示！
       document.getElementById("app-hist-pid").value = pid; 
+      document.getElementById("app-hist-start").value = "";
+      document.getElementById("app-hist-end").value = "";
       renderAppHistory();
 
       const radios = document.querySelectorAll('input[name="app-type"]');
       radios.forEach(r => { r.disabled = true; r.checked = false; });
-      
-      // 👉 取出哪些選項屬於「突破限制(複陽)」
-      const breakCatNames = Array.from(radios).filter(r => r.getAttribute("data-cat-type") === "BREAK").map(r => r.value);
       
       inputAppDays.value = "";
       inputAppQty.value = "";
@@ -160,7 +177,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       let latestApp = null;
       let absoluteMaxEndDate = new Date(0); 
-      let hasUsedBreakInControlPeriod = false; // 👉 核心旗標：管制期內是否已複陽
+      let hasUsedBreakInControlPeriod = false; 
 
       State.applications.forEach(app => {
         if (String(app['病歷號']).toUpperCase() === pid && String(app['藥品代碼']).toUpperCase() === drugCode && app['作廢'] !== 'Y') {
@@ -181,7 +198,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 latestApp = app;
             }
             
-            // 👉 檢核：只要在管制期內，有任何一筆是突破限制類別或名稱帶有「複陽」，就立起旗標
+            const breakCatNames = Array.from(radios).filter(r => r.getAttribute("data-cat-type") === "BREAK").map(r => r.value);
             if (breakCatNames.includes(app['申請類別']) || String(app['申請類別']).includes('複陽')) {
                 hasUsedBreakInControlPeriod = true;
             }
@@ -222,7 +239,6 @@ document.addEventListener("DOMContentLoaded", () => {
         radios.forEach(r => {
             const catType = r.getAttribute("data-cat-type");
             if (catType === "BREAK") {
-                // 👉 突破限制卡控：如果已經突破過，則鎖死
                 r.disabled = hasUsedBreakInControlPeriod;
             } else if (catType === "EXTENSION") {
                 r.disabled = (isMaxedOut || hasUsedExtension);
@@ -231,18 +247,17 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
 
-        // 決定提示文字與阻擋警告
         if (isMaxedOut || hasUsedExtension) {
             if (hasUsedBreakInControlPeriod) {
-                document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-x-circle text-danger fw-bold"></i> ⛔ 本次療程已達額度，且管制期內已使用過突破限制(複陽)，無法再次申請！';
-                alert(`⛔ 阻擋：此病患本次療程已達額度，且在管制期內已經申請過一次「突破限制/複陽」，無法再次申請。`);
+                document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-x-circle text-danger fw-bold"></i> ⛔ 本次療程已達額度，且管制期內已使用過突破限制，無法再次申請！';
+                alert(`⛔ 阻擋：此病患本次療程已達額度，且在管制期內已經申請過一次「突破限制」，無法再次申請。`);
             } else {
                 document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-exclamation-triangle text-danger fw-bold"></i> ⚠️ 本次療程已達全局額度，僅能選擇「突破限制」建立新療程。';
                 alert(`此病患本次療程已達全局額度，或已申請過展延。\n僅能選擇「🔴 突破限制」之類別建立新療程。`);
             }
         } else {
             if (hasUsedBreakInControlPeriod) {
-                document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-info-circle text-primary fw-bold"></i> 🔍 尚有一般額度可延伸 (突破限制/複陽 額度已用罄)。';
+                document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-info-circle text-primary fw-bold"></i> 🔍 尚有一般額度可延伸 (突破限制額度已用罄)。';
             } else {
                 document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-info-circle text-primary fw-bold"></i> 🔍 已找到近期紀錄，可選擇「一般延伸」或「突破限制」。';
             }
@@ -299,7 +314,6 @@ document.addEventListener("DOMContentLoaded", () => {
           document.getElementById("app-start-date").readOnly = false;
           
           const today = new Date();
-          // 若為突破限制，防重疊起點設為「前次最晚結束日」與「今天」兩者取晚
           if (catType === "BREAK" && window.currentAbsoluteMaxEndDate > today) {
               document.getElementById("app-start-date").value = window.currentAbsoluteMaxEndDate.toISOString().split('T')[0];
           } else {
@@ -326,7 +340,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const startDateRaw = document.getElementById("app-start-date").value;
     const startDateStr = startDateRaw ? startDateRaw.replace(/-/g, '/') : formatAsDate(new Date()); 
     
-    // 👉 終極防疊：突破限制的啟用日不得小於前次療程的結束日
     if (catType === "BREAK" && new Date(startDateStr) < window.currentAbsoluteMaxEndDate) {
         alert(`⛔ 突破限制(新療程)的啟用日期不可與前次重疊！\n前次療程將於 ${formatAsDate(window.currentAbsoluteMaxEndDate)} 結束，您必須選取此日期或更晚的日期。`);
         return;
