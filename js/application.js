@@ -350,6 +350,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const now = new Date();
 
     const dataObj = {
+      "依據單號": "", // 👉 修正：這才是申請單的真正 KEY 值名稱
       "病歷號": inputAppPid.value.trim().toUpperCase(),
       "藥品代碼": State.currentSelectedDrugCode,
       "申請類別": typeEl.value,
@@ -368,7 +369,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const res = await postData("submitApplication", dataObj);
     if(res.status === 'success') {
       alert("申請單已成功送出！");
-      dataObj['申請單號'] = ""; 
+      dataObj['依據單號'] = ""; 
       State.applications.push(dataObj); 
       renderAppHistory(); 
       
