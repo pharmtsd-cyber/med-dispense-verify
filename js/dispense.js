@@ -126,7 +126,7 @@ window.showAppDetails = function(appId) {
         contentDiv.innerHTML = `
             <table class="table table-bordered table-sm mb-0 align-middle">
                 <tbody>
-                    <tr><th class="bg-light text-end" width="30%">申請單號</th><td class="text-secondary font-monospace small">${app['依據單號'] || '-'}</td></tr>
+                    <tr><th class="bg-light text-end" width="30%">依據單號</th><td class="text-secondary font-monospace small">${app['依據單號'] || '-'}</td></tr>
                     <tr><th class="bg-light text-end">病歷號</th><td class="fw-bold text-primary fs-6">${app['病歷號']}</td></tr>
                     <tr><th class="bg-light text-end">藥品代碼</th><td class="fw-bold">${app['藥品代碼']}</td></tr>
                     <tr><th class="bg-light text-end">申請類別</th><td><span class="badge bg-info text-dark">${app['申請類別']}</span></td></tr>
