@@ -75,27 +75,41 @@ window.renderDispenseHistory = function() {
             if(startStr && logDateStr < startStr) return;
             if(endStr && logDateStr > endStr) return;
 
-            const isDispense = log['調劑類別'] === '調劑';
+            // 👉 智慧備援 1：如果沒有調劑類別，就去抓「選擇調劑或退藥」欄位
+            const logTypeStr = log['調劑類別'] || log['選擇調劑或退藥'] || '調劑';
+            const isDispense = logTypeStr.includes('調劑');
+            const displayBadgeStr = isDispense ? '調劑' : '退藥';
             
+            // 👉 智慧備援 2：如果數量沒有抓到，就用調劑數量/退藥數量自己算
+            let displayQty = log['數量'];
+            if (displayQty === undefined || displayQty === "") {
+                const dQty = parseInt(log['調劑數量']) || 0;
+                const rQty = parseInt(log['退藥數量']) || 0;
+                displayQty = isDispense ? -(dQty) : rQty;
+            }
+
+            // 👉 智慧備援 3：單號防呆顯示
             const basisId = log['依據單號'];
             let basisHtml = '-';
-            if (basisId && basisId !== '手動無單號' && basisId !== '退藥紀錄' && basisId !== '退藥無依據') {
+            
+            if (basisId === undefined || basisId === 'undefined') {
+                basisHtml = `<span class="badge bg-danger">缺表頭: 依據單號</span>`;
+            } else if (basisId && basisId !== '手動無單號' && basisId !== '退藥紀錄' && basisId !== '退藥無依據') {
                 basisHtml = `<button class="btn btn-sm btn-outline-primary py-0 px-2 fw-bold" onclick="showAppDetails('${basisId}')" style="font-size: 0.8rem; border-radius: 12px;"><i class="bi bi-file-earmark-text"></i> ${basisId.substring(0, 12)}${basisId.length > 12 ? '...' : ''}</button>`;
             } else if (basisId) {
                 basisHtml = `<span class="small text-muted">${basisId}</span>`;
             }
 
-            // 👉 新增：組合顯示領藥號與退藥號
             let noHtml = log['領藥號'] || '-';
-            if (log['調劑類別'] === '退藥' && log['退藥號']) {
+            if (!isDispense && log['退藥號']) {
                 noHtml = `${log['領藥號'] || '-'} <br><span class="text-danger small">退: ${log['退藥號']}</span>`;
             }
 
             html += `<tr>
                 <td>${logDateStr} ${formatAsTime(log['調劑時間'])}</td>
                 <td class="fw-bold text-primary">${logPid}</td>
-                <td><span class="badge ${isDispense ? 'bg-success' : 'bg-danger'}">${log['調劑類別']}</span></td>
-                <td class="fw-bold ${isDispense ? 'text-success' : 'text-danger'}">${log['數量'] > 0 ? '+' : ''}${log['數量']}</td>
+                <td><span class="badge ${isDispense ? 'bg-success' : 'bg-danger'}">${displayBadgeStr}</span></td>
+                <td class="fw-bold ${isDispense ? 'text-success' : 'text-danger'}">${displayQty > 0 ? '+' : ''}${displayQty}</td>
                 <td class="small text-muted">${noHtml}</td>
                 <td>${basisHtml}</td>
             </tr>`;
@@ -147,7 +161,7 @@ if(barcodeInput) {
           if (parts.length >= 4) {
             const pid = parts[0].trim();
             const scanDrugCode = parts[1].trim(); 
-            const no = parts[2].trim(); // 保留原始領藥號
+            const no = parts[2].trim(); 
             const qty = parseInt(parts[3].trim()) || 1; 
             
             if (State.currentSelectedDrugCode && scanDrugCode !== State.currentSelectedDrugCode) {
@@ -173,7 +187,6 @@ if(barcodeInput) {
             isProcessingDispense = true;
             barcodeInput.disabled = true;
             
-            // 👉 傳入退藥號
             await executeDispenseFlow(pid, qty, type, no, retNo, note, "條碼");
             
             isProcessingDispense = false;
@@ -195,7 +208,6 @@ window.manualDispenseModal = function() {
     const typeEl = document.querySelector('input[name="disp-type"]:checked');
     const type = typeEl ? typeEl.value : '調劑';
     
-    // 👉 動態控制退藥號欄位顯示與隱藏
     const retGroup = document.getElementById("manual-ret-no-group");
     const retInput = document.getElementById("manual-ret-no");
     if(retGroup && retInput) {
@@ -261,10 +273,8 @@ document.addEventListener("DOMContentLoaded", () => {
             const qty = parseInt(document.getElementById("manual-qty").value);
             const no = document.getElementById("manual-no").value.trim();
             
-            // 讀取退藥號 (可能為空)
             const retInput = document.getElementById("manual-ret-no");
             const retNo = retInput ? retInput.value.trim() : "";
-            
             const note = document.getElementById("manual-note").value.trim();
             
             isProcessingDispense = true;
@@ -304,7 +314,6 @@ function showDispenseResult(status, htmlMsg) {
     }
 }
 
-// 👉 核心流程：接收退藥號 retNo 參數
 async function executeDispenseFlow(pid, qty, type, no, retNo, note, inputMethod) {
     let checkResult = performDispenseCalculation(pid, qty, type, no);
     
@@ -369,12 +378,10 @@ async function executeDispenseFlow(pid, qty, type, no, retNo, note, inputMethod)
     return true; 
 }
 
-// 👉 核心檢核邏輯：加入退藥的 LIFO 與依據單號追蹤
 function performDispenseCalculation(pid, qty, type, originalNo) {
     const drugCode = State.currentSelectedDrugCode;
     const drug = State.activeDrugs.find(d => String(d['藥品代碼']).toUpperCase() === drugCode);
     
-    // 找出該病患此藥品所有未作廢的申請單
     let allPatientApps = State.applications.filter(app => {
         return String(app['病歷號']).toUpperCase() === pid && 
                String(app['藥品代碼']).toUpperCase() === drugCode && 
@@ -385,30 +392,27 @@ function performDispenseCalculation(pid, qty, type, originalNo) {
         let targetApp = null;
         let maxReturnable = 0;
 
-        // 預設將申請單由新到舊排序 (LIFO - 退藥從最新的單開始退)
         allPatientApps.sort((a,b) => {
             const dateA = new Date(formatAsDate(a['啟用日期'] || a['收單時間']));
             const dateB = new Date(formatAsDate(b['啟用日期'] || b['收單時間']));
             return dateB - dateA; 
         });
 
-        // 策略一：如果有提供原始「領藥號」，試著直接找那筆發藥紀錄所對應的依據單號
         if (originalNo && originalNo !== "手動無單號") {
-            const originalLog = State.dispenseLogs.find(log => 
-                String(log['病歷號']).toUpperCase() === pid && 
-                String(log['藥品代碼']).toUpperCase() === drugCode && 
-                log['作廢'] !== 'Y' && 
-                log['領藥號'] === originalNo && 
-                log['調劑類別'] === '調劑'
-            );
+            const originalLog = State.dispenseLogs.find(log => {
+                const logTypeStr = log['調劑類別'] || log['選擇調劑或退藥'] || '';
+                return String(log['病歷號']).toUpperCase() === pid && 
+                       String(log['藥品代碼']).toUpperCase() === drugCode && 
+                       log['作廢'] !== 'Y' && 
+                       log['領藥號'] === originalNo && 
+                       logTypeStr.includes('調劑');
+            });
             if (originalLog) {
                 targetApp = allPatientApps.find(a => (a['申請單號'] || a['收單時間']) === originalLog['依據單號']);
             }
         }
 
-        // 策略二：計算 TargetApp 或循序找尋可以退額度的單據
         if (targetApp) {
-            // 已鎖定單據，計算該單據目前已發出多少量 (可退的最大值)
             const basisId = targetApp['申請單號'] || targetApp['收單時間'];
             let netDispensed = 0;
             State.dispenseLogs.forEach(log => {
@@ -418,11 +422,9 @@ function performDispenseCalculation(pid, qty, type, originalNo) {
                 }
             });
             maxReturnable = netDispensed;
-            // 如果這張單的可退量不足，則放棄這張，進入策略三全域搜尋
             if (qty > maxReturnable) targetApp = null; 
         }
 
-        // 策略三：找不到對應領藥號，或是該單不夠退，直接找該病患最新且有額度可退的單
         if (!targetApp) {
             for (let app of allPatientApps) {
                 const basisId = app['申請單號'] || app['收單時間'];
@@ -452,14 +454,12 @@ function performDispenseCalculation(pid, qty, type, originalNo) {
         };
     }
 
-    // ==== 以下為「調劑發藥」的常規檢核邏輯 ====
     const controlDays = parseInt(drug['管制天數'] || 14);
     const today = new Date();
     today.setHours(0,0,0,0);
     const cutoffDate = new Date(today);
     cutoffDate.setDate(cutoffDate.getDate() - controlDays);
     
-    // 調劑發藥必須落在管制期內
     let validApps = allPatientApps.filter(app => {
         const actDateStr = formatAsDate(app['啟用日期']) || formatAsDate(app['收單時間']);
         const actDate = new Date(actDateStr);
@@ -467,7 +467,6 @@ function performDispenseCalculation(pid, qty, type, originalNo) {
         return actDate >= cutoffDate; 
     });
 
-    // 調劑由舊到新排序 (FIFO - 先把舊單的額度吃完)
     validApps.sort((a,b) => {
         const dateA = new Date(formatAsDate(a['啟用日期'] || a['收單時間']));
         const dateB = new Date(formatAsDate(b['啟用日期'] || b['收單時間']));
