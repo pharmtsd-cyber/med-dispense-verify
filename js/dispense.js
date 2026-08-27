@@ -40,6 +40,13 @@ window.openDispenseForm = function() {
     const noteInput = document.getElementById("disp-note-input");
     if(noteInput) noteInput.value = "";
     
+    // 👉 每次進來時，預設切換回「調劑發藥 (綠色)」狀態
+    const dispTypeDisp = document.getElementById("disp-type-disp");
+    if(dispTypeDisp) {
+        dispTypeDisp.checked = true;
+        dispTypeDisp.dispatchEvent(new Event('change'));
+    }
+    
     switchView('dispense');
     renderDispenseHistory(); 
     
@@ -155,13 +162,11 @@ if(barcodeInput) {
                     return; 
                 }
                 no = retNo; 
-                // 👉 取消退藥理由必填檢查
             }
             
             isProcessingDispense = true;
             barcodeInput.disabled = true;
             
-            // 👉 條碼作業：傳入 "條碼" 參數
             await executeDispenseFlow(pid, qty, type, no, note, "條碼");
             
             isProcessingDispense = false;
@@ -177,14 +182,12 @@ if(barcodeInput) {
     });
 }
 
-// 👉 呼叫手動作業 Modal 表單
 window.manualDispenseModal = function() {
     if(isProcessingDispense) return; 
     
     const typeEl = document.querySelector('input[name="disp-type"]:checked');
     const type = typeEl ? typeEl.value : '調劑';
     
-    // 動態設定表單的必填提示
     const noLabel = document.getElementById("manual-no-label");
     const noInput = document.getElementById("manual-no");
     if(noLabel && noInput) {
@@ -205,8 +208,40 @@ window.manualDispenseModal = function() {
     modal.show();
 };
 
-// 👉 綁定手動作業表單的送出事件
 document.addEventListener("DOMContentLoaded", () => {
+    // 👉 新增 1：監聽調劑/退藥按鈕的切換，動態改變顏色
+    document.querySelectorAll('input[name="disp-type"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            const isReturn = e.target.value === '退藥';
+            const scanCard = document.getElementById('disp-scan-card');
+            const scanBody = document.getElementById('disp-scan-body');
+            const scanTitle = document.getElementById('disp-scan-title');
+            const barcodeInp = document.getElementById('barcode-input');
+            const noteInp = document.getElementById('disp-note-input');
+
+            if (isReturn) {
+                if(scanCard) scanCard.classList.replace('border-success', 'border-danger');
+                if(scanBody) scanBody.classList.replace('bg-success', 'bg-danger');
+                if(scanTitle) {
+                    scanTitle.classList.replace('text-success', 'text-danger');
+                    scanTitle.innerHTML = '<i class="bi bi-upc-scan"></i> 條碼掃描區 (🔴 退藥模式 - 補回額度)';
+                }
+                if(barcodeInp) barcodeInp.classList.replace('border-success', 'border-danger');
+                if(noteInp) noteInp.classList.replace('border-success', 'border-danger');
+            } else {
+                if(scanCard) scanCard.classList.replace('border-danger', 'border-success');
+                if(scanBody) scanBody.classList.replace('bg-danger', 'bg-success');
+                if(scanTitle) {
+                    scanTitle.classList.replace('text-danger', 'text-success');
+                    scanTitle.innerHTML = '<i class="bi bi-upc-scan"></i> 條碼掃描區 (🟢 調劑模式 - 即時寫入)';
+                }
+                if(barcodeInp) barcodeInp.classList.replace('border-danger', 'border-success');
+                if(noteInp) noteInp.classList.replace('border-danger', 'border-success');
+            }
+        });
+    });
+
+    // 👉 新增 2：手動表單改為「檢核通過才關閉」的邏輯
     const manualForm = document.getElementById("manual-dispense-form");
     if(manualForm) {
         manualForm.addEventListener("submit", async (e) => {
@@ -221,19 +256,31 @@ document.addEventListener("DOMContentLoaded", () => {
             const no = document.getElementById("manual-no").value.trim();
             const note = document.getElementById("manual-note").value.trim();
             
-            // 隱藏 Modal
-            const modalEl = document.getElementById('manualDispenseModalElement');
-            const modal = bootstrap.Modal.getInstance(modalEl);
-            if(modal) modal.hide();
-            
             isProcessingDispense = true;
-            document.getElementById("disp-check-result").classList.remove("d-none-important");
-            document.getElementById("disp-check-result").className = "alert alert-info";
-            document.getElementById("disp-check-result").innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> 正在處理...';
             
-            // 👉 手動作業：傳入 "手動" 參數
-            await executeDispenseFlow(pid, qty, type, no || "手動無單號", note, "手動");
+            // 讓送出按鈕顯示轉圈圈，避免重複點擊
+            const submitBtn = manualForm.querySelector('button[type="submit"]');
+            const originalBtnText = submitBtn.innerText;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>檢核中...';
+            
+            // 清空先前的結果提示
+            document.getElementById("disp-check-result").classList.add("d-none-important");
+            
+            // 執行檢核 (等待它回傳 true 還是 false)
+            const success = await executeDispenseFlow(pid, qty, type, no || "手動無單號", note, "手動");
+            
             isProcessingDispense = false;
+            submitBtn.disabled = false;
+            submitBtn.innerText = originalBtnText;
+
+            // 只有成功才隱藏 Modal，否則就保留著讓藥師可以直接修改數量或病歷號
+            if (success) {
+                const modalEl = document.getElementById('manualDispenseModalElement');
+                const modal = bootstrap.Modal.getInstance(modalEl);
+                if(modal) modal.hide();
+                manualForm.reset();
+            }
         });
     }
 });
@@ -250,7 +297,7 @@ function showDispenseResult(status, htmlMsg) {
     }
 }
 
-// 👉 接收 inputMethod (手動或條碼) 參數
+// 👉 更新 3：回傳 boolean 讓前端知道檢核有沒有成功
 async function executeDispenseFlow(pid, qty, type, no, note, inputMethod) {
     let checkResult = performDispenseCalculation(pid, qty, type);
     
@@ -265,7 +312,7 @@ async function executeDispenseFlow(pid, qty, type, no, note, inputMethod) {
 
     if (!checkResult.success) {
         showDispenseResult("error", checkResult.msg);
-        return;
+        return false; // 檢核失敗，回傳 false
     }
 
     const now = new Date();
@@ -277,9 +324,8 @@ async function executeDispenseFlow(pid, qty, type, no, note, inputMethod) {
         "病歷號": pid,
         "藥品代碼": State.currentSelectedDrugCode,
         "調劑類別": type,
-        // 👉 新增並補齊漏掉的關鍵欄位
         "選擇調劑或退藥": type === '調劑' ? '調劑發藥' : '退藥作業',
-        "手動或條碼": inputMethod, // '手動' 或 '條碼'
+        "手動或條碼": inputMethod,
         "調劑數量": type === '調劑' ? Math.abs(qty) : 0, 
         "退藥數量": type === '退藥' ? Math.abs(qty) : 0,
         "數量": signedQty,
@@ -312,6 +358,8 @@ async function executeDispenseFlow(pid, qty, type, no, note, inputMethod) {
             renderDispenseHistory();
         }
     });
+    
+    return true; // 檢核成功並寫入，回傳 true
 }
 
 function performDispenseCalculation(pid, qty, type) {
