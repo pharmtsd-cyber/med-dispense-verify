@@ -45,7 +45,8 @@ window.openDispenseForm = function() {
     if(barcodeInput) barcodeInput.focus();
 };
 
-// 函數名稱統一為 renderDispenseHistory 確保與 HTML 的 onclick 綁定一致
+// 請在 js/dispense.js 中，完全替換 renderDispenseHistory 函數，並加上 showAppDetails：
+
 window.renderDispenseHistory = function() {
     const tbody = document.getElementById("disp-history-table");
     if(!tbody) return;
@@ -70,16 +71,62 @@ window.renderDispenseHistory = function() {
             if(endStr && logDateStr > endStr) return;
 
             const isDispense = log['調劑類別'] === '發藥';
+            
+            // 👉 核心修改：將依據單號轉換為可點擊的按鈕
+            const basisId = log['依據單號'];
+            let basisHtml = '-';
+            if (basisId && basisId !== '手動' && basisId !== '退藥紀錄' && basisId !== '退藥無依據') {
+                // 如果是正常的單號，做成藍色小按鈕
+                basisHtml = `<button class="btn btn-sm btn-outline-primary py-0 px-2 fw-bold" onclick="showAppDetails('${basisId}')" style="font-size: 0.8rem; border-radius: 12px;"><i class="bi bi-file-earmark-text"></i> ${basisId.substring(0, 12)}${basisId.length > 12 ? '...' : ''}</button>`;
+            } else if (basisId) {
+                // 如果是手動退藥等沒有特定單號的狀況，顯示一般文字
+                basisHtml = `<span class="small text-muted">${basisId}</span>`;
+            }
+
             html += `<tr>
                 <td>${logDateStr} ${formatAsTime(log['調劑時間'])}</td>
                 <td class="fw-bold text-primary">${logPid}</td>
                 <td><span class="badge ${isDispense ? 'bg-success' : 'bg-danger'}">${log['調劑類別']}</span></td>
                 <td class="fw-bold ${isDispense ? 'text-success' : 'text-danger'}">${isDispense ? '+' : '-'}${log['數量']}</td>
-                <td class="small text-muted">${log['依據單號'] || '-'}</td>
+                <td>${basisHtml}</td>
             </tr>`;
         }
     });
     tbody.innerHTML = html || '<tr><td colspan="5" class="text-muted">區間內查無符合紀錄</td></tr>';
+};
+
+// 👉 新增：點擊單號按鈕時，顯示該申請單的詳細資訊視窗
+window.showAppDetails = function(appId) {
+    // 嘗試用單號或是收單時間去匹配申請單 (相容舊資料)
+    const app = State.applications.find(a => a['申請單號'] === appId || a['收單時間'] === appId);
+    const contentDiv = document.getElementById("appDetailContent");
+
+    if (!app) {
+        contentDiv.innerHTML = '<div class="alert alert-warning"><i class="bi bi-exclamation-triangle"></i> 找不到對應的申請單紀錄，可能已被作廢或系統尚未同步。</div>';
+    } else {
+        // 將申請單資料整理成漂亮的表格
+        contentDiv.innerHTML = `
+            <table class="table table-bordered table-sm mb-0 align-middle">
+                <tbody>
+                    <tr><th class="bg-light text-end" width="30%">申請單號</th><td class="text-secondary font-monospace small">${app['申請單號'] || '-'}</td></tr>
+                    <tr><th class="bg-light text-end">病歷號</th><td class="fw-bold text-primary fs-6">${app['病歷號']}</td></tr>
+                    <tr><th class="bg-light text-end">藥品代碼</th><td class="fw-bold">${app['藥品代碼']}</td></tr>
+                    <tr><th class="bg-light text-end">申請類別</th><td><span class="badge bg-info text-dark">${app['申請類別']}</span></td></tr>
+                    <tr><th class="bg-light text-end">申請數量</th><td><span class="text-muted">${app['申請天數']} 天</span> / <span class="fw-bold text-danger fs-6">${app['申請數量']} 支</span></td></tr>
+                    <tr><th class="bg-light text-end">啟用日期</th><td class="fw-bold text-success">${formatAsDate(app['啟用日期']) || '-'}</td></tr>
+                    <tr><th class="bg-light text-end">建單時間</th><td class="small text-muted">${formatAsDate(app['收單時間'])} ${formatAsTime(app['收單時間'])}</td></tr>
+                    <tr><th class="bg-light text-end">藥師 / 單位</th><td>${app['藥師姓名']} <span class="text-muted small">(${app['處理單位']})</span></td></tr>
+                    <tr><th class="bg-light text-end">主管簽核</th><td>${app['主管核准人'] ? `<span class="badge bg-warning text-dark"><i class="bi bi-pen"></i> ${app['主管核准人']}</span>` : '<span class="text-muted small">無</span>'}</td></tr>
+                    <tr><th class="bg-light text-end">備註說明</th><td>${app['申請備註'] || '<span class="text-muted small">-</span>'}</td></tr>
+                </tbody>
+            </table>
+        `;
+    }
+
+    // 呼叫 Bootstrap 5 原生 API 顯示彈出視窗
+    const modalEl = document.getElementById('appDetailModal');
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
 };
 
 const barcodeInput = document.getElementById("barcode-input");
