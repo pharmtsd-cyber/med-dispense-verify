@@ -165,17 +165,17 @@ async function initApp(user) {
   if (typeof renderDrugManageTable === "function") renderDrugManageTable(); 
 }
 
-// js/main.js 內的 smartSync 區塊完全替換：
+// 請將 js/main.js 內的 smartSync 與 forceSyncData 區塊完全替換為以下內容：
 
 let lastSyncTimestamp = 0;
 let isSmartSyncing = false;
 let smartSyncPromise = null;
 
-// 👉 升級版：智能無感同步引擎 (加入智慧合併防護)
+// 👉 升級版：智能無感同步引擎
 window.smartSync = async function(force = false) {
     const now = Date.now();
     
-    // 15 秒快取護盾
+    // 15 秒快取護盾 (若是強制同步則無視護盾)
     if (!force && (now - lastSyncTimestamp < 15000)) {
         return true; 
     }
@@ -190,34 +190,37 @@ window.smartSync = async function(force = false) {
                 const cloudApps = syncData.applications || [];
                 const cloudDisp = syncData.dispenseLogs || [];
                 
-                // 🛡️ 智慧合併機制 (Smart Merge)：
-                // 檢查本地暫存的所有申請單，如果雲端傳回來的資料中「還沒有這筆」，就把它保留下來！
-                const localOnlyApps = State.applications.filter(local => {
-                    const localTime = formatAsDate(local['收單時間']) + " " + formatAsTime(local['收單時間']);
-                    return !cloudApps.some(cloud => {
-                        const cloudTime = formatAsDate(cloud['收單時間']) + " " + formatAsTime(cloud['收單時間']);
-                        return String(cloud['病歷號']).toUpperCase() === String(local['病歷號']).toUpperCase() && 
-                               String(cloud['藥品代碼']).toUpperCase() === String(local['藥品代碼']).toUpperCase() && 
-                               cloudTime === localTime;
+                if (force) {
+                    // 👉 最高權限：如果是「強制同步」，則無情覆蓋，徹底消滅本地幽靈快取！
+                    State.applications = cloudApps;
+                    State.dispenseLogs = cloudDisp;
+                } else {
+                    // 🛡️ 一般操作時：保留智慧合併機制 (Smart Merge)
+                    const localOnlyApps = State.applications.filter(local => {
+                        const localTime = formatAsDate(local['收單時間']) + " " + formatAsTime(local['收單時間']);
+                        return !cloudApps.some(cloud => {
+                            const cloudTime = formatAsDate(cloud['收單時間']) + " " + formatAsTime(cloud['收單時間']);
+                            return String(cloud['病歷號']).toUpperCase() === String(local['病歷號']).toUpperCase() && 
+                                   String(cloud['藥品代碼']).toUpperCase() === String(local['藥品代碼']).toUpperCase() && 
+                                   cloudTime === localTime;
+                        });
                     });
-                });
-                
-                // 同樣的邏輯套用於調劑紀錄
-                const localOnlyDisp = State.dispenseLogs.filter(local => {
-                    const localTime = formatAsDate(local['調劑時間']) + " " + formatAsTime(local['調劑時間']);
-                    return !cloudDisp.some(cloud => {
-                        const cloudTime = formatAsDate(cloud['調劑時間']) + " " + formatAsTime(cloud['調劑時間']);
-                        return String(cloud['病歷號']).toUpperCase() === String(local['病歷號']).toUpperCase() && 
-                               String(cloud['藥品代碼']).toUpperCase() === String(local['藥品代碼']).toUpperCase() && 
-                               cloudTime === localTime;
+                    
+                    const localOnlyDisp = State.dispenseLogs.filter(local => {
+                        const localTime = formatAsDate(local['調劑時間']) + " " + formatAsTime(local['調劑時間']);
+                        return !cloudDisp.some(cloud => {
+                            const cloudTime = formatAsDate(cloud['調劑時間']) + " " + formatAsTime(cloud['調劑時間']);
+                            return String(cloud['病歷號']).toUpperCase() === String(local['病歷號']).toUpperCase() && 
+                                   String(cloud['藥品代碼']).toUpperCase() === String(local['藥品代碼']).toUpperCase() && 
+                                   cloudTime === localTime;
+                        });
                     });
-                });
 
-                // 將雲端資料與尚未進入雲端的最新本地資料「完美合併」
-                State.applications = [...cloudApps, ...localOnlyApps];
-                State.dispenseLogs = [...cloudDisp, ...localOnlyDisp];
-                State.allDrugs = syncData.allDrugs || [];
+                    State.applications = [...cloudApps, ...localOnlyApps];
+                    State.dispenseLogs = [...cloudDisp, ...localOnlyDisp];
+                }
                 
+                State.allDrugs = syncData.allDrugs || [];
                 lastSyncTimestamp = Date.now();
             }
             return true;
@@ -232,19 +235,30 @@ window.smartSync = async function(force = false) {
     return smartSyncPromise;
 };
 
+// 👉 強化版：強制同步按鈕
 window.forceSyncData = async function() {
   if(!checkNetwork()) return;
-  alert("開始與伺服器同步最新資料，請稍候...");
   
+  // 讓側邊欄的按鈕顯示轉圈圈，體驗更好
+  const btn = document.querySelector('a[onclick="forceSyncData()"]');
+  const originalHtml = btn ? btn.innerHTML : '';
+  if (btn) btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> 正在與雲端同步...';
+  
+  // 傳入 true，啟動 100% 雲端覆蓋模式
   await window.smartSync(true); 
   
+  // 👉 確保所有畫面都會被重新渲染
   if (State.currentSelectedDrugCode) {
-    refreshSingleDrugDashboard();
+    if (typeof refreshSingleDrugDashboard === "function") refreshSingleDrugDashboard();
+    if (typeof renderAppHistory === "function") renderAppHistory();
+    if (typeof renderDispenseHistory === "function") renderDispenseHistory();
   } else {
-    renderOverview();
+    if (typeof renderOverview === "function") renderOverview();
   }
   if (typeof renderDrugManageTable === "function") renderDrugManageTable();
-  alert("資料同步完成！");
+  
+  if (btn) btn.innerHTML = originalHtml;
+  alert("✅ 資料已強制同步並更新畫面！");
 };
 
 function populateUnitSelects() {
