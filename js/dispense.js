@@ -2,7 +2,8 @@
 
 let isProcessingDispense = false;
 
-window.openDispenseDashboard = function() {
+// 👉 這裡把函數名稱改回 HTML 認得的 openDispenseForm
+window.openDispenseForm = function() {
     if(!State.currentSelectedDrugCode) return;
     const drug = State.activeDrugs.find(d => String(d['藥品代碼']).toUpperCase() === State.currentSelectedDrugCode);
     const user = JSON.parse(sessionStorage.getItem("currentUser"));
@@ -11,7 +12,7 @@ window.openDispenseDashboard = function() {
     document.getElementById("disp-pharmacist-id").value = user.id;
     document.getElementById("disp-pharmacist-name").value = user.name;
     
-    // 👉 3. 預設篩選區間：[今天 - 管制天數] ~ [今天]
+    // 👉 預設篩選區間：[今天 - 管制天數] ~ [今天]
     const today = new Date();
     const controlDays = parseInt(drug['管制天數'] || 14);
     const startDate = new Date();
