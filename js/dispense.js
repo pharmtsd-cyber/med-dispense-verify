@@ -255,6 +255,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const barcodeInput = document.getElementById("barcode-input");
   if(!barcodeInput) return;
 
+// 請在 js/dispense.js 找到這段並完全替換：
+
   barcodeInput.addEventListener("keypress", async (e) => {
       if (e.key === "Enter") {
         e.preventDefault();
@@ -266,7 +268,15 @@ document.addEventListener("DOMContentLoaded", () => {
         
         const parts = str.split(';');
         if (parts.length >= 4) {
-          // ... (解析代碼邏輯不變) ...
+          
+          // 👇 這裡就是之前被我用註解省略掉的「變數解析邏輯」，已經幫您補回來了！
+          const pid = parts[0].trim();                      // 條碼第 1 段：病歷號
+          const no = parts[1].trim();                       // 條碼第 2 段：處方單號或藥品代碼
+          const qty = parseInt(parts[2].trim()) || 1;       // 條碼第 3 段：數量
+          
+          // 取得畫面上選擇的是「發藥」還是「退藥」
+          const typeEl = document.querySelector('input[name="disp-type"]:checked');
+          const type = typeEl ? typeEl.value : '發藥';
           
           isProcessingDispense = true;
           barcodeInput.disabled = true;
@@ -286,6 +296,10 @@ document.addEventListener("DOMContentLoaded", () => {
               barcodeInput.placeholder = "確認上方設定無誤後，請刷入藥袋條碼...";
               barcodeInput.focus();
           }
+        } else {
+          // 防呆：如果刷進來的不是合格的二維條碼
+          alert("⛔ 條碼格式錯誤！請確認刷入的是包含分號(;)的完整二維條碼。");
+          barcodeInput.value = "";
         }
       }
   });
