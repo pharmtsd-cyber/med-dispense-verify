@@ -225,16 +225,22 @@ async function executeDispenseFlow(pid, qty, type, no, note) {
         return;
     }
 
-    // 檢核通過，組合上傳資料
+// 檢核通過，組合上傳資料
     const now = new Date();
     const user = JSON.parse(sessionStorage.getItem("currentUser"));
+    
     const dataObj = {
         "病歷號": pid,
         "藥品代碼": State.currentSelectedDrugCode,
         "調劑類別": type,
-        "數量": qty,
+        // 👉 補齊給儀表板與資料庫的精準欄位
+        "調劑數量": type === '發藥' ? qty : 0, 
+        "退藥數量": type === '退藥' ? qty : 0,
+        "數量": qty, // 保留此欄位確保前端表格相容性
         "依據單號": checkResult.basisId,
         "領藥號": no,
+        // 👉 補齊缺少的獨立日期欄位
+        "調劑日期": formatAsDate(now),
         "調劑時間": formatAsDate(now) + " " + formatAsTime(now),
         "藥師員工編號": user.id,
         "藥師姓名": user.name,
