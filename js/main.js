@@ -328,8 +328,36 @@ function enablePharmacistChange(prefix) {
   inputId.addEventListener('keypress', inputId._phHandler);
 }
 
-// 👉 將以下代碼加入 js/main.js 最下方
+// 👉 統一收納：申請單明細彈窗 (供所有視圖共用)
+window.showAppDetails = function(appId) {
+    const app = State.applications.find(a => a['申請單號'] === appId || a['收單時間'] === appId);
+    const contentDiv = document.getElementById("appDetailContent");
 
+    if (!app) {
+        contentDiv.innerHTML = '<div class="alert alert-warning"><i class="bi bi-exclamation-triangle"></i> 找不到對應的申請單紀錄，可能已被作廢或系統尚未同步。</div>';
+    } else {
+        contentDiv.innerHTML = `
+            <table class="table table-bordered table-sm mb-0 align-middle">
+                <tbody>
+                    <tr><th class="bg-light text-end" width="30%">申請單號</th><td class="text-secondary font-monospace small">${app['申請單號'] || '-'}</td></tr>
+                    <tr><th class="bg-light text-end">病歷號</th><td class="fw-bold text-primary fs-6">${app['病歷號']}</td></tr>
+                    <tr><th class="bg-light text-end">藥品代碼</th><td class="fw-bold">${app['藥品代碼']}</td></tr>
+                    <tr><th class="bg-light text-end">申請類別</th><td><span class="badge bg-info text-dark">${app['申請類別']}</span></td></tr>
+                    <tr><th class="bg-light text-end">申請數量</th><td><span class="text-muted">${app['申請天數']} 天</span> / <span class="fw-bold text-danger fs-6">${app['申請數量']} 支</span></td></tr>
+                    <tr><th class="bg-light text-end">啟用日期</th><td class="fw-bold text-success">${formatAsDate(app['啟用日期']) || '-'}</td></tr>
+                    <tr><th class="bg-light text-end">建單時間</th><td class="small text-muted">${formatAsDate(app['收單時間'])} ${formatAsTime(app['收單時間'])}</td></tr>
+                    <tr><th class="bg-light text-end">藥師 / 單位</th><td>${app['藥師姓名']} <span class="text-muted small">(${app['處理單位']})</span></td></tr>
+                    <tr><th class="bg-light text-end">主管簽核</th><td>${app['主管核准人'] ? `<span class="badge bg-warning text-dark"><i class="bi bi-pen"></i> ${app['主管核准人']}</span>` : '<span class="text-muted small">無</span>'}</td></tr>
+                    <tr><th class="bg-light text-end">備註說明</th><td>${app['申請備註'] || '<span class="text-muted small">-</span>'}</td></tr>
+                </tbody>
+            </table>
+        `;
+    }
+    const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('appDetailModal'));
+    modal.show();
+};
+
+// 👉 異動操作專用 Modal 引擎
 window.openActionModal = function(recordType, action, recordId) {
     const user = JSON.parse(sessionStorage.getItem("currentUser"));
     if (!user) return alert("請先登入！");
@@ -338,15 +366,13 @@ window.openActionModal = function(recordType, action, recordId) {
     const form = document.getElementById('record-action-form');
     form.reset();
 
-    // 尋找目標資料
     let record = null;
-    let pkField = "";
+    let pkField = (recordType === 'APP') ? "申請單號" : "調劑流水號";
+    
     if (recordType === 'APP') {
-        record = State.applications.find(a => a['申請單號'] === recordId);
-        pkField = "申請單號";
+        record = State.applications.find(a => a[pkField] === recordId);
     } else {
-        record = State.dispenseLogs.find(d => d['調劑流水號'] === recordId || d['申請單號'] === recordId); // 若流水號未生成，用單號暫代
-        pkField = "調劑流水號";
+        record = State.dispenseLogs.find(d => d[pkField] === recordId || d['申請單號'] === recordId);
     }
 
     if (!record) return alert("找不到該筆資料，請先重新整理同步！");
@@ -358,15 +384,14 @@ window.openActionModal = function(recordType, action, recordId) {
     document.getElementById('action-emp-id').value = user.id;
     document.getElementById('action-emp-name').value = user.name;
     
-    // 預設抓取登入單位，但允許藥師手動修改
     const currentUnitEl = document.querySelector(`input[name="${recordType === 'APP' ? 'app' : 'disp'}-unit-radio"]:checked`);
     document.getElementById('action-unit').value = currentUnitEl ? currentUnitEl.value : (user.unit || "");
 
     const header = document.getElementById('action-modal-header');
     const title = document.getElementById('action-modal-title');
     const btn = document.getElementById('btn-submit-action');
-    const dynamicFieldsContainer = document.getElementById('action-dynamic-fields');
-    dynamicFieldsContainer.innerHTML = "";
+    const dynamicContainer = document.getElementById('action-dynamic-fields');
+    dynamicContainer.innerHTML = "";
 
     if (action === 'EDIT') {
         header.className = "modal-header text-white bg-primary";
@@ -374,12 +399,12 @@ window.openActionModal = function(recordType, action, recordId) {
         btn.className = "btn btn-primary w-100 fw-bold shadow-sm";
         btn.innerText = "確認修改並儲存";
 
-        // 動態生成可編輯欄位 (排除系統欄位與異動欄位)
-        const skipFields = [pkField, '收單時間', '調劑時間', '作廢', '作廢藥師員工編號', '作廢藥師姓名', '作廢時間', '異動單位', '異動藥師員工編號', '異動藥師姓名', '異動時間', '異動備註'];
+        // 動態生成可編輯欄位 (排除系統與異動欄位)
+        const skipFields = [pkField, '收單時間', '調劑時間', '作廢', '異動', '異動單位', '異動藥師員工編號', '異動藥師姓名', '異動時間', '異動備註'];
         
         Object.keys(record).forEach(key => {
             if (!skipFields.includes(key) && typeof record[key] !== 'undefined') {
-                dynamicFieldsContainer.innerHTML += `
+                dynamicContainer.innerHTML += `
                     <div class="col-md-6">
                         <label class="form-label fw-bold small">${key}</label>
                         <input type="text" class="form-control editable-field" data-key="${key}" value="${record[key]}">
@@ -392,13 +417,13 @@ window.openActionModal = function(recordType, action, recordId) {
         title.innerHTML = `<i class="bi bi-trash"></i> 作廢資料 [${record[pkField] || recordId}]`;
         btn.className = "btn btn-danger w-100 fw-bold shadow-sm";
         btn.innerText = "確認作廢此筆紀錄";
-        dynamicFieldsContainer.innerHTML = `<div class="col-12"><div class="alert alert-warning fw-bold mb-0">⚠️ 警告：作廢後，此筆紀錄將不再列入任何額度統計與計算。</div></div>`;
+        dynamicContainer.innerHTML = `<div class="col-12"><div class="alert alert-warning fw-bold mb-0">⚠️ 警告：作廢後，此筆紀錄將不再列入任何額度統計與計算。</div></div>`;
     } else if (action === 'RESTORE') {
         header.className = "modal-header text-white bg-success";
         title.innerHTML = `<i class="bi bi-arrow-counterclockwise"></i> 還原資料 [${record[pkField] || recordId}]`;
         btn.className = "btn btn-success w-100 fw-bold shadow-sm";
         btn.innerText = "確認還原此筆紀錄";
-        dynamicFieldsContainer.innerHTML = `<div class="col-12"><div class="alert alert-info fw-bold mb-0">💡 提示：還原後，此筆紀錄將重新加入額度計算。</div></div>`;
+        dynamicContainer.innerHTML = `<div class="col-12"><div class="alert alert-info fw-bold mb-0">💡 提示：還原後，此筆紀錄將重新加入額度計算。</div></div>`;
     }
 
     modal.show();
@@ -420,11 +445,12 @@ document.addEventListener("DOMContentLoaded", () => {
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 處理中...';
 
-            // 防護盾：執行異動前，在背景做一次極速同步，確保不發生覆寫衝突
-            await window.smartSync();
+            await window.smartSync(); // 寫入前強制防護同步
 
             const now = new Date();
+            // 精準映射您的 Google Sheets 欄位
             let updatePayload = {
+                "異動": action === 'EDIT' ? '修改' : (action === 'VOID' ? '作廢' : '還原'),
                 "異動單位": document.getElementById('action-unit').value,
                 "異動藥師員工編號": document.getElementById('action-emp-id').value,
                 "異動藥師姓名": document.getElementById('action-emp-name').value,
@@ -442,7 +468,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 updatePayload['作廢'] = 'N';
             }
 
-            // 準備上傳給後端的結構
             const apiPayload = {
                 table: recordType === 'APP' ? 'Applications' : 'DispenseLogs',
                 keyColumn: recordType === 'APP' ? '申請單號' : '調劑流水號',
@@ -450,18 +475,13 @@ document.addEventListener("DOMContentLoaded", () => {
                 updateData: updatePayload
             };
 
-            // 👉 注意：此處需要您的 Google Apps Script 後端支援 'updateRecord' 動作
             const res = await postData("updateRecord", apiPayload);
 
             if (res.status === 'success') {
-                // 樂觀更新前端狀態
                 let targetArray = recordType === 'APP' ? State.applications : State.dispenseLogs;
                 let record = targetArray.find(r => r[apiPayload.keyColumn] === recordId);
-                if (record) {
-                    Object.assign(record, updatePayload);
-                }
+                if (record) Object.assign(record, updatePayload);
 
-                // 重繪所有相關畫面
                 if (typeof renderAppHistory === "function") renderAppHistory();
                 if (typeof renderDispenseHistory === "function") renderDispenseHistory();
                 if (typeof refreshSingleDrugDashboard === "function") refreshSingleDrugDashboard();
