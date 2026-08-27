@@ -86,7 +86,6 @@ window.renderDispenseHistory = function() {
                 displayQty = isDispense ? -(dQty) : rQty;
             }
 
-            // 👉 統一使用 申請單號
             const basisId = log['申請單號'];
             let basisHtml = '-';
             
@@ -331,52 +330,68 @@ async function executeDispenseFlow(pid, qty, type, no, retNo, note, inputMethod)
 
     const now = new Date();
     const user = JSON.parse(sessionStorage.getItem("currentUser"));
-    const signedQty = (type === '調劑') ? -Math.abs(qty) : Math.abs(qty);
     
-    const dataObj = {
-        "調劑流水號": "", 
-        "病歷號": pid,
-        "藥品代碼": State.currentSelectedDrugCode,
-        "調劑類別": type,
-        "選擇調劑或退藥": type === '調劑' ? '調劑發藥' : '退藥作業',
-        "手動或條碼": inputMethod,
-        "調劑數量": type === '調劑' ? Math.abs(qty) : 0, 
-        "退藥數量": type === '退藥' ? Math.abs(qty) : 0,
-        "數量": signedQty,
-        "申請單號": checkResult.basisId, 
-        "領藥號": no,
-        "退藥號": retNo,      
-        "調劑日期": formatAsDate(now),
-        "調劑時間": formatAsDate(now) + " " + formatAsTime(now),
-        "藥師員工編號": user.id,
-        "藥師姓名": user.name,
-        "處理單位": user.unit || "",
-        "調劑退藥理由": note    
-    };
+    let basisIdsUsed = [];
 
-    State.dispenseLogs.unshift(dataObj);
+    // 👉 核心改動：將一筆大額度的調劑，拆分成多筆 LOG 對應到不同的單號 (跨單扣帳)
+    for (let plan of checkResult.deductionPlan) {
+        const splitQty = plan.deductQty;
+        const signedQty = (type === '調劑') ? -Math.abs(splitQty) : Math.abs(splitQty);
+        const basisId = plan.basisId;
+        basisIdsUsed.push(basisId.substring(0,10));
+        
+        const dataObj = {
+            "調劑流水號": "", 
+            "病歷號": pid,
+            "藥品代碼": State.currentSelectedDrugCode,
+            "調劑類別": type,
+            "選擇調劑或退藥": type === '調劑' ? '調劑發藥' : '退藥作業',
+            "手動或條碼": inputMethod,
+            "調劑數量": type === '調劑' ? Math.abs(splitQty) : 0, 
+            "退藥數量": type === '退藥' ? Math.abs(splitQty) : 0,
+            "數量": signedQty,
+            "申請單號": basisId, 
+            "領藥號": no,
+            "退藥號": retNo,      
+            "調劑日期": formatAsDate(now),
+            "調劑時間": formatAsDate(now) + " " + formatAsTime(now),
+            "藥師員工編號": user.id,
+            "藥師姓名": user.name,
+            "處理單位": user.unit || "",
+            "調劑退藥理由": note    
+        };
+
+        // 樂觀更新：立刻寫入前端陣列
+        State.dispenseLogs.unshift(dataObj);
+
+        // 背景非同步上傳拆分後的各筆 LOG
+        postData("submitDispense", dataObj).then(res => {
+            if(res.status !== 'success') {
+                console.error("背景上傳失敗", res);
+                alert(`⚠️ 病患 ${pid} 的部分作業上傳雲端失敗，請檢查網路！`);
+                State.dispenseLogs = State.dispenseLogs.filter(l => l !== dataObj);
+                renderDispenseHistory();
+            }
+        });
+    }
+
     document.getElementById("disp-hist-pid").value = pid;
     renderDispenseHistory();
 
+    // 彙整顯示跨單結果
+    const uniqueBasisIds = [...new Set(basisIdsUsed)].join(', ');
+
     if (type === '調劑') {
-        const newRem = checkResult.availableRemaining - Math.abs(qty);
-        showDispenseResult("success", `✅ 檢核通過！依據單號 [${checkResult.basisId.substring(0,10)}...] 扣除，該單尚餘: ${newRem} 支`);
+        const newRem = checkResult.totalAvailableRemaining - Math.abs(qty);
+        showDispenseResult("success", `✅ 檢核通過！依據單號 [${uniqueBasisIds}...] 扣除共 ${qty} 支，總餘額尚有: ${newRem} 支`);
     } else {
-        showDispenseResult("success", `✅ 退藥檢核通過！已將 ${qty} 支額度補回原申請單 [${checkResult.basisId.substring(0,10)}...]`);
+        showDispenseResult("success", `✅ 退藥檢核通過！已將 ${qty} 支額度補回原申請單 [${uniqueBasisIds}...]`);
     }
 
-    postData("submitDispense", dataObj).then(res => {
-        if(res.status !== 'success') {
-            console.error("背景上傳失敗", res);
-            alert(`⚠️ 病患 ${pid} 的作業上傳雲端失敗，請檢查網路！`);
-            State.dispenseLogs = State.dispenseLogs.filter(l => l !== dataObj);
-            renderDispenseHistory();
-        }
-    });
-    
     return true; 
 }
 
+// 👉 核心演算法：支援跨單湊合的計算引擎
 function performDispenseCalculation(pid, qty, type, originalNo) {
     const drugCode = State.currentSelectedDrugCode;
     const drug = State.activeDrugs.find(d => String(d['藥品代碼']).toUpperCase() === drugCode);
@@ -388,77 +403,70 @@ function performDispenseCalculation(pid, qty, type, originalNo) {
     });
 
     if (type === '退藥') {
-        let targetApp = null;
-        let maxReturnable = 0;
-
+        // 退藥 LIFO：越新的單據優先被退回額度
         allPatientApps.sort((a,b) => {
             const dateA = new Date(formatAsDate(a['啟用日期'] || a['收單時間']));
             const dateB = new Date(formatAsDate(b['啟用日期'] || b['收單時間']));
             return dateB - dateA; 
         });
 
-        if (originalNo && originalNo !== "手動無單號") {
-            const originalLog = State.dispenseLogs.find(log => {
-                const logTypeStr = log['調劑類別'] || log['選擇調劑或退藥'] || '';
-                return String(log['病歷號']).toUpperCase() === pid && 
-                       String(log['藥品代碼']).toUpperCase() === drugCode && 
-                       log['作廢'] !== 'Y' && 
-                       log['領藥號'] === originalNo && 
-                       logTypeStr.includes('調劑');
-            });
-            if (originalLog) {
-                // 👉 統一使用 申請單號 尋找
-                targetApp = allPatientApps.find(a => (a['申請單號'] || a['收單時間']) === originalLog['申請單號']);
-            }
-        }
+        let appDispensed = [];
+        let totalDispensed = 0;
 
-        if (targetApp) {
-            const basisId = targetApp['申請單號'] || targetApp['收單時間'];
+        allPatientApps.forEach(app => {
+            const basisId = app['申請單號'] || app['收單時間'];
             let netDispensed = 0;
             State.dispenseLogs.forEach(log => {
-                // 👉 統一使用 申請單號 尋找
                 if (String(log['病歷號']).toUpperCase() === pid && String(log['藥品代碼']).toUpperCase() === drugCode && log['作廢'] !== 'Y' && log['申請單號'] === basisId) {
                     netDispensed += parseInt(log['調劑數量'] || 0);
                     netDispensed -= parseInt(log['退藥數量'] || 0);
                 }
             });
-            maxReturnable = netDispensed;
-            if (qty > maxReturnable) targetApp = null; 
-        }
-
-        if (!targetApp) {
-            for (let app of allPatientApps) {
-                const basisId = app['申請單號'] || app['收單時間'];
-                let netDispensed = 0;
-                State.dispenseLogs.forEach(log => {
-                    // 👉 統一使用 申請單號 尋找
-                    if (String(log['病歷號']).toUpperCase() === pid && String(log['藥品代碼']).toUpperCase() === drugCode && log['作廢'] !== 'Y' && log['申請單號'] === basisId) {
-                        netDispensed += parseInt(log['調劑數量'] || 0);
-                        netDispensed -= parseInt(log['退藥數量'] || 0);
-                    }
-                });
-                if (netDispensed >= qty) {
-                    targetApp = app;
-                    maxReturnable = netDispensed;
-                    break;
-                }
+            if (netDispensed > 0) {
+                totalDispensed += netDispensed;
+                appDispensed.push({ basisId: basisId, maxReturnable: netDispensed });
             }
+        });
+
+        if (qty > totalDispensed) {
+            return { success: false, msg: `退藥失敗！欲退數量 (${qty}) 大於此病患目前可退的總發出額度 (${totalDispensed})。` };
         }
 
-        if (!targetApp) {
-            return { success: false, msg: `退藥失敗！病患 ${pid} 查無可退額度的申請單，或可退額度不足。` };
+        // 如果有指定領藥號，將有關聯的申請單排到最前面優先退款
+        if (originalNo && originalNo !== "手動無單號") {
+             let involvedBasisIds = new Set();
+             State.dispenseLogs.forEach(log => {
+                if (String(log['病歷號']).toUpperCase() === pid && String(log['藥品代碼']).toUpperCase() === drugCode && log['作廢'] !== 'Y' && log['領藥號'] === originalNo) {
+                    involvedBasisIds.add(log['申請單號']);
+                }
+             });
+             appDispensed.sort((a, b) => {
+                 const aIn = involvedBasisIds.has(a.basisId) ? 1 : 0;
+                 const bIn = involvedBasisIds.has(b.basisId) ? 1 : 0;
+                 return bIn - aIn; 
+             });
         }
 
-        return { 
-            success: true, 
-            basisId: targetApp['申請單號'] || targetApp['收單時間'],
-            availableRemaining: maxReturnable 
-        };
+        // 開始拆分退藥數量
+        let remainingQtyToReturn = qty;
+        let returnPlan = [];
+
+        for (let ad of appDispensed) {
+            if (remainingQtyToReturn <= 0) break;
+            const returnAmt = Math.min(ad.maxReturnable, remainingQtyToReturn);
+            returnPlan.push({ basisId: ad.basisId, deductQty: returnAmt });
+            remainingQtyToReturn -= returnAmt;
+        }
+
+        return { success: true, deductionPlan: returnPlan, totalAvailableRemaining: totalDispensed };
     }
 
+    
+// ==== 調劑發藥 (常規檢核邏輯) ====
     const controlDays = parseInt(drug['管制天數'] || 14);
     const today = new Date();
     today.setHours(0,0,0,0);
+    
     const cutoffDate = new Date(today);
     cutoffDate.setDate(cutoffDate.getDate() - controlDays);
     
@@ -466,25 +474,27 @@ function performDispenseCalculation(pid, qty, type, originalNo) {
         const actDateStr = formatAsDate(app['啟用日期']) || formatAsDate(app['收單時間']);
         const actDate = new Date(actDateStr);
         actDate.setHours(0,0,0,0);
-        return actDate >= cutoffDate; 
+        
+        // 👉 核心補強：必須大於管制界線 (沒過期)，且必須小於等於今天 (可用日期已生效，不可預支未來單)
+        return actDate >= cutoffDate && actDate <= today; 
     });
 
+    // 調劑 FIFO：越舊的單據優先扣除額度
     validApps.sort((a,b) => {
         const dateA = new Date(formatAsDate(a['啟用日期'] || a['收單時間']));
         const dateB = new Date(formatAsDate(b['啟用日期'] || b['收單時間']));
         return dateA - dateB; 
     });
 
-    let targetApp = null;
-    let availableRemaining = 0;
+    let totalRem = 0;
+    let appBalances = [];
 
+    // 計算所有有效單據各自的剩餘量
     for (let app of validApps) {
-        // 👉 統一使用 申請單號 尋找
         const basisId = app['申請單號'] || app['收單時間'];
         let usedQty = 0;
         
         State.dispenseLogs.forEach(log => {
-            // 👉 統一使用 申請單號 尋找
             if (String(log['病歷號']).toUpperCase() === pid && 
                 String(log['藥品代碼']).toUpperCase() === drugCode && 
                 log['作廢'] !== 'Y' && 
@@ -499,22 +509,29 @@ function performDispenseCalculation(pid, qty, type, originalNo) {
         const rem = maxQty - usedQty;
 
         if (rem > 0) {
-            targetApp = app;
-            availableRemaining = rem;
-            break; 
+            totalRem += rem;
+            appBalances.push({ basisId: basisId, rem: rem });
         }
     }
 
-    if (!targetApp) {
-        return { success: false, msg: `檢核失敗！病患 ${pid} 於管制期內查無有效餘額之申請單。` };
-    }
-    if (qty > availableRemaining) {
-        return { success: false, msg: `數量不足！刷入量 (${qty}) 大於最早可用單據之剩餘量 (${availableRemaining})。<br><small>請分次刷入或退回重開。</small>` };
+    if (totalRem === 0) {
+        return { success: false, msg: `檢核失敗！病患 ${pid} 於管制期內查無已生效且有餘額之申請單。` };
     }
 
-    return { 
-        success: true, 
-        basisId: targetApp['申請單號'] || targetApp['收單時間'],
-        availableRemaining: availableRemaining 
-    };
+    if (qty > totalRem) {
+        return { success: false, msg: `數量不足！刷入量 (${qty}) 大於此病患目前已生效可用單據之總餘額 (${totalRem})。<br><small>請確認是否有跨療程或未生效的申請單。</small>` };
+    }
+
+    // 開始拆分發藥數量
+    let remainingQtyToDeduct = qty;
+    let deductionPlan = [];
+
+    for (let ab of appBalances) {
+        if (remainingQtyToDeduct <= 0) break;
+        const deductAmt = Math.min(ab.rem, remainingQtyToDeduct);
+        deductionPlan.push({ basisId: ab.basisId, deductQty: deductAmt });
+        remainingQtyToDeduct -= deductAmt;
+    }
+
+    return { success: true, deductionPlan: deductionPlan, totalAvailableRemaining: totalRem };
 }
