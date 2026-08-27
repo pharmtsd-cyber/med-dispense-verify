@@ -218,13 +218,14 @@
 
             <div class="card shadow-sm mb-3 border-success" id="disp-scan-card">
               <div class="card-body bg-success bg-opacity-10" id="disp-scan-body">
-                <h5 class="text-success fw-bold" id="disp-scan-title"><i class="bi bi-upc-scan"></i> 條碼掃描區 (調劑模式 - 即時寫入)</h5>
-                <div class="row g-2 mt-1">
+                <h5 class="text-success fw-bold mb-3" id="disp-scan-title"><i class="bi bi-upc-scan"></i> 條碼掃描區 (調劑模式 - 即時寫入)</h5>
+                <div class="row g-2">
                   <div class="col-12">
-                    <input type="text" id="disp-note-input" class="form-control form-control-sm border-success" placeholder="📝 填寫備註 / 退藥理由 (選填)">
+                    <label class="form-label text-success fw-bold small mb-1"><i class="bi bi-pencil-square"></i> 調劑備註 / 退藥理由 (選填，請先填寫)</label>
+                    <input type="text" id="disp-note-input" class="form-control border-success mb-2" placeholder="📝 若需備註請在此輸入...">
                   </div>
                   <div class="col-12">
-                    <input type="text" id="barcode-input" class="form-control border-success form-control-lg text-uppercase fw-bold text-center" placeholder="確認設定無誤後，請刷入藥袋條碼..." autofocus>
+                    <input type="text" id="barcode-input" class="form-control border-success form-control-lg text-uppercase fw-bold text-center shadow-sm" placeholder="確認設定無誤後，請刷入藥袋條碼..." autofocus>
                   </div>
                 </div>
               </div>
@@ -355,6 +356,50 @@
               <input type="text" id="manual-note" class="form-control" placeholder="可留空">
             </div>
             <button type="submit" class="btn btn-primary w-100 fw-bold shadow-sm">確認送出</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 👉 新增：資料異動 (修改/作廢/還原) 專用表單 -->
+  <div class="modal fade" id="recordActionModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header text-white" id="action-modal-header">
+          <h5 class="modal-title fw-bold" id="action-modal-title">資料異動</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="record-action-form">
+            <input type="hidden" id="action-type">
+            <input type="hidden" id="action-record-type">
+            <input type="hidden" id="action-record-id">
+            
+            <div class="row g-3 mb-3 pb-3 border-bottom">
+              <div class="col-md-4">
+                <label class="form-label fw-bold small text-muted">異動藥師編號</label>
+                <input type="text" id="action-emp-id" class="form-control bg-light" readonly>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label fw-bold small text-muted">姓名</label>
+                <input type="text" id="action-emp-name" class="form-control bg-light" readonly>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label fw-bold text-primary">異動單位 (可更改)</label>
+                <input type="text" id="action-unit" class="form-control border-primary" required>
+              </div>
+            </div>
+
+            <!-- 動態生成的修改欄位會放在這裡 -->
+            <div id="action-dynamic-fields" class="row g-3 mb-3 border-bottom pb-3"></div>
+
+            <div class="mb-3">
+              <label class="form-label fw-bold text-danger">異動備註 / 理由 <span class="text-muted small">(必填)</span></label>
+              <textarea id="action-note" class="form-control border-danger" rows="2" required placeholder="請務必輸入異動或作廢/還原的原因..."></textarea>
+            </div>
+            
+            <button type="submit" id="btn-submit-action" class="btn btn-primary w-100 fw-bold shadow-sm">確認執行異動</button>
           </form>
         </div>
       </div>
