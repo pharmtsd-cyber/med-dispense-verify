@@ -99,126 +99,163 @@
         </div>
       </div>
 
+<!-- 視圖 3: 填寫申請單 -->
       <div id="view-application" class="view-section d-none-important">
-        <button class="btn btn-sm btn-secondary mb-3" onclick="switchView('drug-dashboard')"><i class="bi bi-arrow-left"></i> 返回 <span id="app-back-drug-name"></span></button>
-        <h3 class="mb-3 text-primary fw-bold">📝 填寫申請單 (<span id="app-form-drug-name" class="text-danger"></span>)</h3>
-        
-        <div class="card bg-primary bg-opacity-10 border-primary mb-3">
-          <div class="card-body p-3" id="app-drug-info-card"></div>
-        </div>
-        
-        <div class="card shadow-sm p-4 mb-4">
-          <form id="app-form">
-            <div class="row g-3 mb-3 pb-3 border-bottom border-light">
-              <div class="col-md-3">
-                <label class="form-label text-muted small fw-bold">填寫藥師編號</label>
-                <div class="input-group">
-                  <input type="text" id="app-pharmacist-id" class="form-control bg-light text-uppercase" readonly required>
-                  <button class="btn btn-outline-secondary" type="button" onclick="enablePharmacistChange('app')">重選</button>
+        <div class="row g-4">
+          <!-- 👉 左半部：表單操作區 -->
+          <div class="col-lg-5 col-xl-5">
+            <button class="btn btn-sm btn-secondary mb-3" onclick="switchView('drug-dashboard')"><i class="bi bi-arrow-left"></i> 返回 <span id="app-back-drug-name"></span></button>
+            <h3 class="mb-3 text-primary fw-bold">📝 填寫申請單 (<span id="app-form-drug-name" class="text-danger"></span>)</h3>
+            
+            <div class="card bg-primary bg-opacity-10 border-primary mb-3">
+              <div class="card-body p-3" id="app-drug-info-card"></div>
+            </div>
+            
+            <div class="card shadow-sm p-4">
+              <form id="app-form">
+                <div class="row g-3 mb-3 pb-3 border-bottom border-light">
+                  <div class="col-12">
+                    <label class="form-label text-muted small fw-bold">填寫藥師編號與姓名</label>
+                    <div class="input-group">
+                      <input type="text" id="app-pharmacist-id" class="form-control bg-light text-uppercase" readonly required>
+                      <input type="text" id="app-pharmacist-name" class="form-control bg-light" readonly required>
+                      <button class="btn btn-outline-secondary" type="button" onclick="enablePharmacistChange('app')">重選</button>
+                    </div>
+                  </div>
+                  <div class="col-12"><label class="form-label text-muted small fw-bold d-block">處理單位</label><div id="app-unit-group" class="btn-group flex-wrap" role="group"></div></div>
                 </div>
-              </div>
-              <div class="col-md-3"><label class="form-label text-muted small fw-bold">藥師姓名</label><input type="text" id="app-pharmacist-name" class="form-control bg-light border-0" readonly required></div>
-              <div class="col-md-6"><label class="form-label text-muted small fw-bold d-block">處理單位</label><div id="app-unit-group" class="btn-group flex-wrap" role="group"></div></div>
-            </div>
 
-            <div class="row g-3">
-              <div class="col-md-3"><label class="form-label fw-bold">病歷號</label><input type="text" id="app-patient-id" class="form-control text-uppercase" required autofocus placeholder="輸入後自動檢核"></div>
-              <div class="col-md-6">
-                <label class="form-label fw-bold mb-1 d-block">申請類別 <span class="text-muted small">(點選查看說明)</span></label>
-                <div class="btn-group w-100 shadow-sm flex-wrap" role="group" id="app-type-group"></div>
-                <div id="app-type-desc" class="form-text text-primary fw-bold mt-2" style="font-size: 0.95rem;"></div>
-              </div>
-              <div class="col-md-3"><label class="form-label fw-bold">啟用日期</label><input type="date" id="app-start-date" class="form-control border-primary" required></div>
-              <div class="col-md-3"><label class="form-label fw-bold">申請天數 <span class="text-danger small" id="lbl-max-days"></span></label><input type="number" id="app-days" class="form-control" required min="1"></div>
-              <div class="col-md-3"><label class="form-label fw-bold">申請數量 <span class="text-danger small" id="lbl-max-qty"></span></label><input type="number" id="app-qty" class="form-control" required min="1"></div>
-              <div class="col-md-6" id="manager-input-group" style="display:none;">
-                <label class="form-label text-danger fw-bold">主管核准人 (需簽核)</label>
-                <select id="app-manager" class="form-select border-danger"><option value="">-- 請選擇簽核主管 --</option></select>
-              </div>
-              <div class="col-md-12"><label class="form-label fw-bold">備註</label><input type="text" id="app-note" class="form-control"></div>
-            </div>
-            <button type="submit" id="btn-submit-app" class="btn btn-primary mt-4 w-100 fw-bold shadow-sm" disabled>確認送出申請</button>
-          </form>
-        </div>
-
-        <div class="card shadow-sm border-0">
-          <div class="card-header bg-white d-flex justify-content-between align-items-center">
-            <h5 class="mb-0 fw-bold"><i class="bi bi-clock-history"></i> 本藥品歷史申請紀錄</h5>
-            <div class="d-flex gap-2">
-              <!-- 👉 新增：排序切換選單 -->
-              <select id="app-hist-sort" class="form-select form-select-sm border-primary fw-bold text-primary" style="width: auto;" onchange="renderAppHistory()">
-                <option value="logTime">排序：建單時間 (新到舊)</option>
-                <option value="actDate">排序：啟用日期 (新到舊)</option>
-              </select>
-              
-              <input type="text" id="app-hist-pid" class="form-control form-control-sm text-uppercase" placeholder="病歷號" style="width: 120px;">
-              <input type="date" id="app-hist-start" class="form-control form-control-sm"><span class="align-self-center">-</span><input type="date" id="app-hist-end" class="form-control form-control-sm">
-              <button class="btn btn-sm btn-secondary" onclick="renderAppHistory()">查詢</button>
+                <div class="row g-3">
+                  <div class="col-md-6"><label class="form-label fw-bold">病歷號</label><input type="text" id="app-patient-id" class="form-control text-uppercase" required autofocus placeholder="輸入後自動檢核"></div>
+                  <div class="col-md-6"><label class="form-label fw-bold">啟用日期</label><input type="date" id="app-start-date" class="form-control border-primary" required></div>
+                  
+                  <div class="col-12">
+                    <label class="form-label fw-bold mb-1 d-block">申請類別 <span class="text-muted small">(點選查看說明)</span></label>
+                    <div class="btn-group w-100 shadow-sm flex-wrap" role="group" id="app-type-group"></div>
+                    <div id="app-type-desc" class="form-text text-primary fw-bold mt-2" style="font-size: 0.95rem;"></div>
+                  </div>
+                  
+                  <div class="col-md-6"><label class="form-label fw-bold">申請天數 <span class="text-danger small" id="lbl-max-days"></span></label><input type="number" id="app-days" class="form-control" required min="1"></div>
+                  <div class="col-md-6"><label class="form-label fw-bold">申請數量 <span class="text-danger small" id="lbl-max-qty"></span></label><input type="number" id="app-qty" class="form-control" required min="1"></div>
+                  <div class="col-12" id="manager-input-group" style="display:none;">
+                    <label class="form-label text-danger fw-bold">主管核准人 (需簽核)</label>
+                    <select id="app-manager" class="form-select border-danger"><option value="">-- 請選擇簽核主管 --</option></select>
+                  </div>
+                  <div class="col-12"><label class="form-label fw-bold">備註</label><input type="text" id="app-note" class="form-control"></div>
+                </div>
+                <button type="submit" id="btn-submit-app" class="btn btn-primary mt-4 w-100 fw-bold shadow-sm" disabled>確認送出申請</button>
+              </form>
             </div>
           </div>
-          <div class="card-body p-0"><div class="table-responsive"><table class="table table-hover align-middle mb-0 text-center"><thead class="table-light small"><tr><th>收單時間 (建單)</th><th>啟用日期</th><th>病歷號</th><th>類別</th><th>天數/數量</th><th>處理單位</th></tr></thead><tbody id="app-history-table"></tbody></table></div></div>
+          
+          <!-- 👉 右半部：紀錄區 (加入高度限制與捲動) -->
+          <div class="col-lg-7 col-xl-7">
+            <div class="card shadow-sm border-0 h-100">
+              <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-bold"><i class="bi bi-clock-history"></i> 本藥品歷史申請紀錄</h5>
+                <div class="d-flex gap-2">
+                  <select id="app-hist-sort" class="form-select form-select-sm border-primary fw-bold text-primary" style="width: auto;" onchange="renderAppHistory()">
+                    <option value="logTime">建單時間 (新到舊)</option>
+                    <option value="actDate">啟用日期 (新到舊)</option>
+                  </select>
+                  <input type="text" id="app-hist-pid" class="form-control form-control-sm text-uppercase" placeholder="病歷號" style="width: 100px;">
+                  <input type="date" id="app-hist-start" class="form-control form-control-sm"><span class="align-self-center">-</span><input type="date" id="app-hist-end" class="form-control form-control-sm">
+                  <button class="btn btn-sm btn-secondary" onclick="renderAppHistory()">查詢</button>
+                </div>
+              </div>
+              <div class="card-body p-0" style="max-height: calc(100vh - 120px); overflow-y: auto;">
+                <div class="table-responsive">
+                  <table class="table table-hover align-middle mb-0 text-center">
+                    <thead class="table-light small" style="position: sticky; top: 0; z-index: 1;">
+                      <tr><th>收單時間 (建單)</th><th>啟用日期</th><th>病歷號</th><th>類別</th><th>天數/數量</th><th>處理單位</th></tr>
+                    </thead>
+                    <tbody id="app-history-table"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
       <!-- 視圖 4: 調劑作業 -->
       <div id="view-dispense" class="view-section d-none-important">
-        <button class="btn btn-sm btn-secondary mb-3" onclick="switchView('drug-dashboard')"><i class="bi bi-arrow-left"></i> 返回 <span id="disp-back-drug-name"></span></button>
-        <h3 class="mb-4 text-success fw-bold">💊 調劑剩餘量檢核 (<span id="disp-form-drug-name" class="text-danger"></span>)</h3>
-        
-        <div class="card shadow-sm mb-3 border-0">
-          <div class="card-body bg-light pb-2">
-            <div class="row g-2">
-              <div class="col-md-3">
-                <label class="form-label text-muted small fw-bold mb-1">作業藥師</label>
-                <div class="input-group input-group-sm">
-                  <input type="text" id="disp-pharmacist-id" class="form-control bg-white text-uppercase" readonly required>
-                  <button class="btn btn-outline-secondary" type="button" onclick="enablePharmacistChange('disp')">重選</button>
-                </div>
-              </div>
-              <div class="col-md-2"><label class="form-label text-muted small fw-bold mb-1">姓名</label><input type="text" id="disp-pharmacist-name" class="form-control form-control-sm border-0 bg-transparent" readonly required></div>
-              <div class="col-md-7"><label class="form-label text-muted small fw-bold mb-1 d-block">處理單位</label><div id="disp-unit-group" class="btn-group flex-wrap" role="group"></div></div>
-              <div class="col-md-12 mt-2">
-                <label class="form-label text-dark small fw-bold mb-1 d-block">作業類別 / 手動作業</label>
-                <div class="d-flex gap-2 align-items-center">
-                  <div class="btn-group shadow-sm" role="group" style="width: 250px;">
-                    <input type="radio" class="btn-check" name="disp-type" id="disp-type-disp" value="調劑" autocomplete="off" checked>
-                    <label class="btn btn-outline-success fw-bold" for="disp-type-disp">調劑發藥</label>
-                    <input type="radio" class="btn-check" name="disp-type" id="disp-type-ret" value="退藥" autocomplete="off">
-                    <label class="btn btn-outline-danger fw-bold" for="disp-type-ret">退藥作業</label>
+        <div class="row g-4">
+          <!-- 👉 左半部：調劑操作區 -->
+          <div class="col-lg-5 col-xl-5">
+            <button class="btn btn-sm btn-secondary mb-3" onclick="switchView('drug-dashboard')"><i class="bi bi-arrow-left"></i> 返回 <span id="disp-back-drug-name"></span></button>
+            <h3 class="mb-4 text-success fw-bold">💊 調劑剩餘量檢核 (<span id="disp-form-drug-name" class="text-danger"></span>)</h3>
+            
+            <div class="card shadow-sm mb-3 border-0">
+              <div class="card-body bg-light pb-2">
+                <div class="row g-2">
+                  <div class="col-12">
+                    <label class="form-label text-muted small fw-bold mb-1">作業藥師</label>
+                    <div class="input-group input-group-sm">
+                      <input type="text" id="disp-pharmacist-id" class="form-control bg-white text-uppercase" readonly required>
+                      <input type="text" id="disp-pharmacist-name" class="form-control bg-white" readonly required>
+                      <button class="btn btn-outline-secondary" type="button" onclick="enablePharmacistChange('disp')">重選</button>
+                    </div>
                   </div>
-                  <button class="btn btn-secondary shadow-sm" type="button" onclick="manualDispenseModal()"><i class="bi bi-keyboard"></i> 無條碼手動輸入</button>
+                  <div class="col-12"><label class="form-label text-muted small fw-bold mb-1 d-block">處理單位</label><div id="disp-unit-group" class="btn-group flex-wrap" role="group"></div></div>
+                  <div class="col-12 mt-2">
+                    <label class="form-label text-dark small fw-bold mb-1 d-block">作業類別 / 手動作業</label>
+                    <div class="d-flex gap-2 align-items-center">
+                      <div class="btn-group shadow-sm" role="group" style="width: 100%;">
+                        <input type="radio" class="btn-check" name="disp-type" id="disp-type-disp" value="調劑" autocomplete="off" checked>
+                        <label class="btn btn-outline-success fw-bold" for="disp-type-disp">調劑發藥</label>
+                        <input type="radio" class="btn-check" name="disp-type" id="disp-type-ret" value="退藥" autocomplete="off">
+                        <label class="btn btn-outline-danger fw-bold" for="disp-type-ret">退藥作業</label>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-12 mt-1">
+                      <button class="btn btn-secondary shadow-sm w-100" type="button" onclick="manualDispenseModal()"><i class="bi bi-keyboard"></i> 無條碼手動輸入</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card shadow-sm mb-3 border-success" id="disp-scan-card">
+              <div class="card-body bg-success bg-opacity-10" id="disp-scan-body">
+                <h5 class="text-success fw-bold" id="disp-scan-title"><i class="bi bi-upc-scan"></i> 條碼掃描區 (調劑模式 - 即時寫入)</h5>
+                <div class="row g-2 mt-1">
+                  <div class="col-12">
+                    <input type="text" id="disp-note-input" class="form-control form-control-sm border-success" placeholder="📝 填寫備註 / 退藥理由 (選填)">
+                  </div>
+                  <div class="col-12">
+                    <input type="text" id="barcode-input" class="form-control border-success form-control-lg text-uppercase fw-bold text-center" placeholder="確認設定無誤後，請刷入藥袋條碼..." autofocus>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div id="disp-check-result" class="alert alert-info mt-2 mb-3 d-none-important"></div>
+          </div>
+          
+          <!-- 👉 右半部：調劑紀錄區 (加入高度限制與捲動) -->
+          <div class="col-lg-7 col-xl-7">
+            <div class="card shadow-sm border-0 h-100">
+              <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-bold"><i class="bi bi-list-check"></i> 近期作業檢核清單</h5>
+                <div class="d-flex gap-2">
+                  <input type="text" id="disp-hist-pid" class="form-control form-control-sm text-uppercase" placeholder="病歷號" style="width: 100px;">
+                  <input type="date" id="disp-hist-start" class="form-control form-control-sm"><span class="align-self-center">-</span><input type="date" id="disp-hist-end" class="form-control form-control-sm">
+                  <button class="btn btn-sm btn-secondary" onclick="renderDispenseHistory()">查詢</button>
+                </div>
+              </div>
+              <div class="card-body p-0" style="max-height: calc(100vh - 120px); overflow-y: auto;">
+                <div class="table-responsive">
+                  <table class="table table-hover align-middle mb-0 text-center">
+                    <thead class="table-light small" style="position: sticky; top: 0; z-index: 1;">
+                      <tr><th>作業時間</th><th>病歷號</th><th>類別</th><th>數量</th><th>領/退藥號</th><th>申請單號</th></tr>
+                    </thead>
+                    <tbody id="disp-history-table"></tbody>
+                  </table>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-
-        <div class="card shadow-sm mb-4 border-success" id="disp-scan-card">
-          <div class="card-body bg-success bg-opacity-10" id="disp-scan-body">
-            <h5 class="text-success fw-bold" id="disp-scan-title"><i class="bi bi-upc-scan"></i> 條碼掃描區 (調劑模式 - 即時寫入)</h5>
-            <div class="row g-2 mt-1">
-              <div class="col-md-3">
-                <input type="text" id="disp-note-input" class="form-control form-control-lg border-success" placeholder="📝 填寫備註 / 退藥理由">
-              </div>
-              <div class="col-md-9">
-                <input type="text" id="barcode-input" class="form-control border-success form-control-lg text-uppercase fw-bold text-center" placeholder="確認設定無誤後，請刷入藥袋條碼..." autofocus>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <div id="disp-check-result" class="alert alert-info mt-2 mb-3 d-none-important"></div>
-
-        <div class="card shadow-sm border-0 mt-4">
-          <div class="card-header bg-white d-flex justify-content-between align-items-center">
-            <h5 class="mb-0 fw-bold"><i class="bi bi-list-check"></i> 近期作業檢核清單</h5>
-            <div class="d-flex gap-2">
-              <input type="text" id="disp-hist-pid" class="form-control form-control-sm text-uppercase" placeholder="病歷號" style="width: 120px;">
-              <input type="date" id="disp-hist-start" class="form-control form-control-sm"><span class="align-self-center">-</span><input type="date" id="disp-hist-end" class="form-control form-control-sm">
-              <button class="btn btn-sm btn-secondary" onclick="renderDispenseHistory()">查詢</button>
-            </div>
-          </div>
-          <div class="card-body p-0"><div class="table-responsive"><table class="table table-hover align-middle mb-0 text-center"><thead class="table-light small"><tr><th>作業時間</th><th>病歷號</th><th>類別</th><th>數量</th><th>領/退藥號</th><th>申請單號</th></tr></thead><tbody id="disp-history-table"></tbody></table></div></div>
         </div>
       </div>
 
