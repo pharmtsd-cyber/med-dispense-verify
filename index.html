@@ -178,7 +178,10 @@
         </div>
       </div>
 
-<!-- 👉 左半部：調劑操作區 -->
+<!-- 視圖 4: 調劑作業 -->
+      <div id="view-dispense" class="view-section d-none-important">
+        <div class="row g-4">
+          <!-- 👉 左半部：調劑操作區 -->
           <div class="col-lg-5 col-xl-5">
             <button class="btn btn-sm btn-secondary mb-3" onclick="switchView('drug-dashboard')"><i class="bi bi-arrow-left"></i> 返回 <span id="disp-back-drug-name"></span></button>
             <h3 class="mb-4 text-success fw-bold">💊 調劑剩餘量檢核 (<span id="disp-form-drug-name" class="text-danger"></span>)</h3>
@@ -196,7 +199,6 @@
                   </div>
                   <div class="col-12"><label class="form-label text-muted small fw-bold mb-1 d-block">處理單位</label><div id="disp-unit-group" class="btn-group flex-wrap" role="group"></div></div>
                   
-                  <!-- 👉 調整：按鈕放在同一列 -->
                   <div class="col-12 mt-2">
                     <label class="form-label text-dark small fw-bold mb-1 d-block">作業類別 / 手動作業</label>
                     <div class="d-flex gap-2 align-items-center">
@@ -210,7 +212,6 @@
                     </div>
                   </div>
 
-                  <!-- 👉 調整：將備註欄位移至此處 -->
                   <div class="col-12 mt-3 border-top pt-2">
                     <label class="form-label text-dark fw-bold small mb-1"><i class="bi bi-pencil-square"></i> 調劑備註 / 退藥理由 (選填，請先填寫)</label>
                     <input type="text" id="disp-note-input" class="form-control mb-1 border-success" placeholder="📝 若需備註請在此輸入...">
@@ -219,7 +220,6 @@
               </div>
             </div>
 
-            <!-- 掃描區只保留輸入框 -->
             <div class="card shadow-sm mb-3 border-success" id="disp-scan-card">
               <div class="card-body bg-success bg-opacity-10" id="disp-scan-body">
                 <h5 class="text-success fw-bold mb-3" id="disp-scan-title"><i class="bi bi-upc-scan"></i> 條碼掃描區 (調劑模式 - 即時寫入)</h5>
@@ -234,7 +234,7 @@
             <div id="disp-check-result" class="alert alert-info mt-2 mb-3 d-none-important"></div>
           </div>
           
-          <!-- 👉 右半部：調劑紀錄區 (加入高度限制與捲動) -->
+          <!-- 👉 右半部：調劑紀錄區 -->
           <div class="col-lg-7 col-xl-7">
             <div class="card shadow-sm border-0 h-100">
               <div class="card-header bg-white d-flex justify-content-between align-items-center">
