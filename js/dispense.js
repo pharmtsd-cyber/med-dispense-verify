@@ -105,7 +105,6 @@ window.renderDispenseHistory = function() {
             const logId = log['調劑流水號'] || log['申請單號']; 
             const actionButtons = `
               <div class="btn-group btn-group-sm shadow-sm">
-                <button class="btn btn-outline-primary" onclick="openActionModal('DIS', 'EDIT', '${logId}')">修改</button>
                 ${isVoid 
                   ? `<button class="btn btn-outline-success" onclick="openActionModal('DIS', 'RESTORE', '${logId}')">還原</button>`
                   : `<button class="btn btn-outline-danger" onclick="openActionModal('DIS', 'VOID', '${logId}')">作廢</button>`
