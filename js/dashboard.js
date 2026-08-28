@@ -1,5 +1,3 @@
-// js/dashboard.js
-
 function renderOverview() {
   const filterCode = document.getElementById("overview-drug-filter").value;
   const container = document.getElementById("overview-content");
@@ -17,7 +15,8 @@ function renderOverview() {
     let totalAppQty = 0;
     
     State.applications.forEach(app => {
-      if(String(app['藥品代碼']).toUpperCase() === code && app['作廢'] !== 'Y') {
+      // 👉 雙重作廢檢查
+      if(String(app['藥品代碼']).toUpperCase() === code && app['作廢'] !== 'Y' && app['異動'] !== '作廢') {
         totalPatients.add(app['病歷號']);
         totalAppQty += parseInt(app['申請數量'] || 0);
       }
@@ -25,7 +24,8 @@ function renderOverview() {
 
     let totalDispensed = 0, totalReturned = 0;
     State.dispenseLogs.forEach(log => {
-      if(String(log['藥品代碼']).toUpperCase() === code && log['作廢'] !== 'Y') {
+      // 👉 雙重作廢檢查
+      if(String(log['藥品代碼']).toUpperCase() === code && log['作廢'] !== 'Y' && log['異動'] !== '作廢') {
         totalDispensed += parseInt(log['調劑數量'] || 0);
         totalReturned += parseInt(log['退藥數量'] || 0);
       }
@@ -88,16 +88,16 @@ function drawMixedChart(code, prefix) {
       let patSet = new Set();
 
       State.applications.forEach(app => {
-          // 👉 修正：使用 收單時間 作為圖表比對基準 (資料庫沒有申請日期這個表頭)
-          if(String(app['藥品代碼']).toUpperCase() === code && app['作廢'] !== 'Y' && formatAsDate(app['收單時間']) === dateLabel) {
+          // 👉 雙重作廢檢查
+          if(String(app['藥品代碼']).toUpperCase() === code && app['作廢'] !== 'Y' && app['異動'] !== '作廢' && formatAsDate(app['收單時間']) === dateLabel) {
               dApp += parseInt(app['申請數量'] || 0);
               patSet.add(app['病歷號']);
           }
       });
 
       State.dispenseLogs.forEach(log => {
-          // 👉 修正：統一使用 調劑時間 作為圖表比對基準
-          if(String(log['藥品代碼']).toUpperCase() === code && log['作廢'] !== 'Y' && formatAsDate(log['調劑時間']) === dateLabel) {
+          // 👉 雙重作廢檢查
+          if(String(log['藥品代碼']).toUpperCase() === code && log['作廢'] !== 'Y' && log['異動'] !== '作廢' && formatAsDate(log['調劑時間']) === dateLabel) {
               dDisp += parseInt(log['調劑數量'] || 0);
               dRet += parseInt(log['退藥數量'] || 0);
               patSet.add(log['病歷號']);
@@ -170,10 +170,9 @@ function refreshSingleDrugDashboard() {
   let records = [];
   if(recordType === 'ALL' || recordType === 'APP') {
     State.applications.forEach(app => {
-      if(String(app['藥品代碼']).toUpperCase() === code && app['作廢'] !== 'Y') {
+      if(String(app['藥品代碼']).toUpperCase() === code) {
         const appPid = String(app['病歷號']).toUpperCase();
         if(pidFilter && !appPid.includes(pidFilter)) return;
-        // 👉 修正：使用 收單時間 篩選
         const dt = formatAsDate(app['收單時間']);
         if(startDate && dt < startDate) return;
         if(endDate && dt > endDate) return;
@@ -184,10 +183,9 @@ function refreshSingleDrugDashboard() {
   
   if(recordType === 'ALL' || recordType === 'DIS') {
     State.dispenseLogs.forEach(log => {
-      if(String(log['藥品代碼']).toUpperCase() === code && log['作廢'] !== 'Y') {
+      if(String(log['藥品代碼']).toUpperCase() === code) {
         const logPid = String(log['病歷號']).toUpperCase();
         if(pidFilter && !logPid.includes(pidFilter)) return;
-        // 👉 修正：使用 調劑時間 篩選
         const dt = formatAsDate(log['調劑時間']);
         if(startDate && dt < startDate) return;
         if(endDate && dt > endDate) return;
@@ -198,36 +196,53 @@ function refreshSingleDrugDashboard() {
   
   records.sort((a, b) => new Date(b.date + ' ' + b.time) - new Date(a.date + ' ' + a.time));
   
-  let html = `<table class="table table-hover align-middle text-center mb-0"><thead class="table-light small"><tr><th>時間</th><th>病歷號</th><th>動作</th><th>數量</th><th>單號 / 領藥號</th><th>操作單位/人員</th></tr></thead><tbody>`;
+  let html = `<table class="table table-hover align-middle text-center mb-0"><thead class="table-light small"><tr><th>時間</th><th>病歷號</th><th>動作</th><th>數量</th><th>單號 / 領藥號</th><th>操作單位/人員</th><th>異動</th></tr></thead><tbody>`;
   records.forEach(r => {
     const pid = String(r.data['病歷號']).toUpperCase();
     const user = r.data['藥師姓名'] || '-';
     const unit = r.data['處理單位'] || '-';
+    // 👉 雙重作廢檢查
+    const isVoid = r.data['作廢'] === 'Y' || r.data['異動'] === '作廢';
+    const rowClass = isVoid ? 'bg-light text-muted text-decoration-line-through opacity-75' : '';
+    
+    const logId = r.type === 'APP' ? r.data['申請單號'] : (r.data['調劑流水號'] || r.data['申請單號']);
+
+    const actionButtons = `
+      <div class="btn-group btn-group-sm shadow-sm">
+        ${isVoid 
+          ? `<button class="btn btn-outline-success" onclick="openActionModal('${r.type}', 'RESTORE', '${logId}')">還原</button>`
+          : `<button class="btn btn-outline-danger" onclick="openActionModal('${r.type}', 'VOID', '${logId}')">作廢</button>`
+        }
+      </div>
+    `;
+
     if(r.type === 'APP') {
-        html += `<tr>
+        html += `<tr class="${rowClass}">
             <td>${r.date} ${r.time}</td>
-            <td class="fw-bold text-primary">${pid}</td>
-            <td><span class="badge bg-info text-dark">${r.data['申請類別']}</span></td>
-            <td class="fw-bold text-primary">+${r.data['申請數量']}</td>
+            <td class="fw-bold ${isVoid ? '' : 'text-primary'}">${pid}</td>
+            <td><span class="badge ${isVoid ? 'bg-secondary' : 'bg-info text-dark'}">${r.data['申請類別']}</span></td>
+            <td class="fw-bold ${isVoid ? '' : 'text-primary'}">+${r.data['申請數量']}</td>
             <td class="small font-monospace">${r.data['依據單號'] || r.data['申請單號'] || '-'}</td>
-            <td class="small text-muted">${unit} / ${user}</td>
+            <td class="small">${unit} / ${user}</td>
+            <td>${actionButtons}</td>
         </tr>`;
     } else {
         const isDisp = parseInt(r.data['調劑數量']) > 0 || (r.data['數量'] < 0);
-        const actionStr = isDisp ? '<span class="badge bg-success">調劑</span>' : '<span class="badge bg-danger">退藥</span>';
+        const actionStr = isVoid ? `<span class="badge bg-secondary">${isDisp ? '調劑' : '退藥'}</span>` : (isDisp ? '<span class="badge bg-success">調劑</span>' : '<span class="badge bg-danger">退藥</span>');
         const qty = isDisp ? (r.data['調劑數量'] || Math.abs(r.data['數量'])) : (r.data['退藥數量'] || Math.abs(r.data['數量']));
-        const qtyClass = isDisp ? 'text-success' : 'text-danger';
+        const qtyClass = isVoid ? '' : (isDisp ? 'text-success' : 'text-danger');
         const sign = isDisp ? '-' : '+';
         let noHtml = r.data['領藥號'] || '-';
         if (!isDisp && r.data['退藥號']) noHtml += ` <br><span class="text-danger small">退: ${r.data['退藥號']}</span>`;
 
-        html += `<tr>
+        html += `<tr class="${rowClass}">
             <td>${r.date} ${r.time}</td>
-            <td class="fw-bold text-primary">${pid}</td>
+            <td class="fw-bold ${isVoid ? '' : 'text-primary'}">${pid}</td>
             <td>${actionStr}</td>
             <td class="fw-bold ${qtyClass}">${sign}${qty}</td>
             <td class="small font-monospace">${noHtml}</td>
-            <td class="small text-muted">${unit} / ${user}</td>
+            <td class="small">${unit} / ${user}</td>
+            <td>${actionButtons}</td>
         </tr>`;
     }
   });
