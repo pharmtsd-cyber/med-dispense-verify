@@ -367,18 +367,45 @@ window.showAppDetails = function(appId) {
     modal.show();
 };
 
-// 👉 背景心跳同步引擎：每 10 秒自動與雲端對帳，確保多機台額度一致！
-setInterval(() => {
-    // 只有在系統閒置（沒有在轉圈圈同步時）才默默更新
-    if (typeof window.smartSync === 'function') {
-        window.smartSync(false); 
-        // 若畫面停留在單一藥品，則默默更新右側表格 (不打斷左側輸入)
-        if (State.currentSelectedDrugCode && !document.getElementById('recordActionModal').classList.contains('show')) {
-            if (typeof renderAppHistory === "function") renderAppHistory();
-            if (typeof renderDispenseHistory === "function") renderDispenseHistory();
+// 👉 替換原本的 setInterval 背景心跳引擎：加入防火牆友善與休眠機制
+let heartbeatTimer = null;
+
+function startHeartbeat() {
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
+    
+    // 放寬至 60 秒 (60000 毫秒)，大幅降低醫院防火牆與 Google API 負擔
+    heartbeatTimer = setInterval(() => {
+        // 🛡️ 防火牆友善機制 1：如果網頁被縮小或切換到背景，停止發送背景請求！
+        if (document.hidden) return;
+        
+        if (typeof window.smartSync === 'function') {
+            window.smartSync(false).then(() => {
+                const actionModal = document.getElementById('recordActionModal');
+                // 若畫面停留在單一藥品，且沒有打開異動表單，才默默更新畫面
+                if (State.currentSelectedDrugCode && (!actionModal || !actionModal.classList.contains('show'))) {
+                    if (typeof renderAppHistory === "function") renderAppHistory();
+                    if (typeof renderDispenseHistory === "function") renderDispenseHistory();
+                }
+            });
         }
+    }, 60000); 
+}
+
+// 啟動心跳引擎
+startHeartbeat();
+
+// 🛡️ 防火牆友善機制 2：當使用者將視窗切換回這個網頁 (喚醒) 時，立刻觸發一次同步
+document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && typeof window.smartSync === 'function') {
+        window.smartSync(false).then(() => {
+            const actionModal = document.getElementById('recordActionModal');
+            if (State.currentSelectedDrugCode && (!actionModal || !actionModal.classList.contains('show'))) {
+                if (typeof renderAppHistory === "function") renderAppHistory();
+                if (typeof renderDispenseHistory === "function") renderDispenseHistory();
+            }
+        });
     }
-}, 10000); // 10000 毫秒 = 10 秒
+});
 
 
 // 👉 異動操作專用 Modal 引擎 (純作廢版)
