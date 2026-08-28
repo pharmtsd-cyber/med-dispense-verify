@@ -209,8 +209,7 @@ window.manualDispenseModal = function() {
     modal.show();
 };
 
-document.addEventListener("DOMContentLoaded", () => {
-    document.querySelectorAll('input[name="disp-type"]').forEach(radio => {
+document.querySelectorAll('input[name="disp-type"]').forEach(radio => {
         radio.addEventListener('change', (e) => {
             const isReturn = e.target.value === '退藥';
             const scanCard = document.getElementById('disp-scan-card');
@@ -227,7 +226,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     scanTitle.innerHTML = '<i class="bi bi-upc-scan"></i> 條碼掃描區 (🔴 退藥模式 - 補回額度)';
                 }
                 if(barcodeInp) barcodeInp.classList.replace('border-success', 'border-danger');
-                // 👉 備註輸入框改成獨立變色
+                // 👉 備註輸入框獨立變色
                 if(noteInp) noteInp.classList.add('border-danger');
                 if(noteInp) noteInp.classList.remove('border-success');
             } else {
@@ -238,7 +237,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     scanTitle.innerHTML = '<i class="bi bi-upc-scan"></i> 條碼掃描區 (🟢 調劑模式 - 即時寫入)';
                 }
                 if(barcodeInp) barcodeInp.classList.replace('border-danger', 'border-success');
-                // 👉 備註輸入框改成獨立變色
+                // 👉 備註輸入框獨立變色
                 if(noteInp) noteInp.classList.add('border-success');
                 if(noteInp) noteInp.classList.remove('border-danger');
             }
