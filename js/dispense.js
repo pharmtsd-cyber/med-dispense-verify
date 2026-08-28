@@ -1,3 +1,5 @@
+// js/dispense.js
+
 let isProcessingDispense = false;
 
 window.openDispenseForm = function() {
@@ -6,7 +8,9 @@ window.openDispenseForm = function() {
     const user = JSON.parse(sessionStorage.getItem("currentUser"));
 
     const drugNameEl = document.getElementById("disp-form-drug-name") || document.getElementById("disp-drug-name");
-    if(drugNameEl) drugNameEl.innerText = `${drug['藥品名稱']} (${drug['藥品代碼']})`;
+    if(drugNameEl) {
+        drugNameEl.innerText = `${drug['藥品名稱']} (${drug['藥品代碼']})`;
+    }
     
     const pharIdEl = document.getElementById("disp-pharmacist-id");
     if(pharIdEl) pharIdEl.value = user.id;
@@ -49,6 +53,7 @@ window.openDispenseForm = function() {
     
     switchView('dispense');
     renderDispenseHistory(); 
+    
     if(barcodeInput) barcodeInput.focus();
 };
 
@@ -89,6 +94,7 @@ window.renderDispenseHistory = function() {
 
             const basisId = log['申請單號'];
             let basisHtml = '-';
+            
             if (basisId === undefined || basisId === 'undefined') {
                 basisHtml = `<span class="badge bg-danger">缺表頭: 申請單號</span>`;
             } else if (basisId && basisId !== '手動無單號' && basisId !== '退藥紀錄' && basisId !== '無申請單號') {
@@ -103,7 +109,8 @@ window.renderDispenseHistory = function() {
             }
 
             const logId = log['調劑流水號'] || log['申請單號']; 
-// 👉 移除修改按鈕，只留作廢與還原
+            
+            // 👉 取消編輯按鈕，只保留作廢與還原
             const actionButtons = `
               <div class="btn-group btn-group-sm shadow-sm">
                 ${isVoid 
@@ -120,7 +127,7 @@ window.renderDispenseHistory = function() {
                 <td class="fw-bold ${isVoid ? '' : 'text-primary'}">${logPid}</td>
                 <td><span class="badge ${isVoid ? 'bg-secondary' : (isDispense ? 'bg-success' : 'bg-danger')}">${displayBadgeStr}</span></td>
                 <td class="fw-bold ${isVoid ? '' : (isDispense ? 'text-success' : 'text-danger')}">${displayQty > 0 ? '+' : ''}${displayQty}</td>
-                <td class="small">${noHtml}</td>
+                <td class="small text-muted">${noHtml}</td>
                 <td>${basisHtml}</td>
                 <td>${actionButtons}</td>
             </tr>`;
@@ -205,11 +212,14 @@ window.manualDispenseModal = function() {
     const form = document.getElementById("manual-dispense-form");
     if(form) form.reset();
     
-    const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('manualDispenseModalElement'));
+    const modalEl = document.getElementById('manualDispenseModalElement');
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
     modal.show();
 };
 
-document.querySelectorAll('input[name="disp-type"]').forEach(radio => {
+document.addEventListener("DOMContentLoaded", () => {
+    // 獨立處理掃描區與備註欄位的顏色切換
+    document.querySelectorAll('input[name="disp-type"]').forEach(radio => {
         radio.addEventListener('change', (e) => {
             const isReturn = e.target.value === '退藥';
             const scanCard = document.getElementById('disp-scan-card');
@@ -226,9 +236,10 @@ document.querySelectorAll('input[name="disp-type"]').forEach(radio => {
                     scanTitle.innerHTML = '<i class="bi bi-upc-scan"></i> 條碼掃描區 (🔴 退藥模式 - 補回額度)';
                 }
                 if(barcodeInp) barcodeInp.classList.replace('border-success', 'border-danger');
-                // 👉 備註輸入框獨立變色
-                if(noteInp) noteInp.classList.add('border-danger');
-                if(noteInp) noteInp.classList.remove('border-success');
+                if(noteInp) {
+                    noteInp.classList.add('border-danger');
+                    noteInp.classList.remove('border-success');
+                }
             } else {
                 if(scanCard) scanCard.classList.replace('border-danger', 'border-success');
                 if(scanBody) scanBody.classList.replace('bg-danger', 'bg-success');
@@ -237,9 +248,10 @@ document.querySelectorAll('input[name="disp-type"]').forEach(radio => {
                     scanTitle.innerHTML = '<i class="bi bi-upc-scan"></i> 條碼掃描區 (🟢 調劑模式 - 即時寫入)';
                 }
                 if(barcodeInp) barcodeInp.classList.replace('border-danger', 'border-success');
-                // 👉 備註輸入框獨立變色
-                if(noteInp) noteInp.classList.add('border-success');
-                if(noteInp) noteInp.classList.remove('border-danger');
+                if(noteInp) {
+                    noteInp.classList.add('border-success');
+                    noteInp.classList.remove('border-danger');
+                }
             }
         });
     });
@@ -256,7 +268,9 @@ document.querySelectorAll('input[name="disp-type"]').forEach(radio => {
             const pid = document.getElementById("manual-pid").value.trim().toUpperCase();
             const qty = parseInt(document.getElementById("manual-qty").value);
             const no = document.getElementById("manual-no").value.trim();
-            const retNo = document.getElementById("manual-ret-no") ? document.getElementById("manual-ret-no").value.trim() : "";
+            
+            const retInput = document.getElementById("manual-ret-no");
+            const retNo = retInput ? retInput.value.trim() : "";
             const note = document.getElementById("manual-note").value.trim();
             
             isProcessingDispense = true;
@@ -275,7 +289,9 @@ document.querySelectorAll('input[name="disp-type"]').forEach(radio => {
             submitBtn.innerText = originalBtnText;
 
             if (success) {
-                bootstrap.Modal.getInstance(document.getElementById('manualDispenseModalElement')).hide();
+                const modalEl = document.getElementById('manualDispenseModalElement');
+                const modal = bootstrap.Modal.getInstance(modalEl);
+                if(modal) modal.hide();
                 manualForm.reset();
             }
         });
@@ -288,7 +304,7 @@ function showDispenseResult(status, htmlMsg) {
     if(status === 'success') {
         resDiv.className = "alert alert-success fs-5 fw-bold shadow-sm";
         resDiv.innerHTML = `<i class="bi bi-check-circle-fill"></i> ${htmlMsg}`;
-    } else {
+    } else if (status === 'error') {
         resDiv.className = "alert alert-danger fs-5 fw-bold shadow-sm";
         resDiv.innerHTML = `<i class="bi bi-x-circle-fill"></i> ${htmlMsg}`;
     }
@@ -313,6 +329,8 @@ async function executeDispenseFlow(pid, qty, type, no, retNo, note, inputMethod)
 
     const now = new Date();
     const user = JSON.parse(sessionStorage.getItem("currentUser"));
+    const signedQty = (type === '調劑') ? -Math.abs(qty) : Math.abs(qty);
+    
     const unitEl = document.querySelector('input[name="disp-unit-radio"]:checked');
     const selectedUnit = unitEl ? unitEl.value : (user.unit || "");
     
@@ -341,7 +359,7 @@ async function executeDispenseFlow(pid, qty, type, no, retNo, note, inputMethod)
             "調劑時間": formatAsDate(now) + " " + formatAsTime(now),
             "藥師員工編號": user.id,
             "藥師姓名": user.name,
-            "處理單位": selectedUnit,
+            "處理單位": selectedUnit, 
             "調劑退藥理由": note    
         };
 
