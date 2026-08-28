@@ -392,7 +392,6 @@ function performDispenseCalculation(pid, qty, type, originalNo) {
     const drug = State.activeDrugs.find(d => String(d['藥品代碼']).toUpperCase() === drugCode);
     
     let allPatientApps = State.applications.filter(app => {
-        // 👉 雙重作廢檢查
         return String(app['病歷號']).toUpperCase() === pid && 
                String(app['藥品代碼']).toUpperCase() === drugCode && 
                app['作廢'] !== 'Y' && app['異動'] !== '作廢';
@@ -402,7 +401,14 @@ function performDispenseCalculation(pid, qty, type, originalNo) {
         allPatientApps.sort((a,b) => {
             const dateA = new Date(formatAsDate(a['啟用日期'] || a['收單時間']));
             const dateB = new Date(formatAsDate(b['啟用日期'] || b['收單時間']));
-            return dateB - dateA; 
+            
+            // 越新的單據優先被退回額度
+            if (dateB.getTime() !== dateA.getTime()) return dateB - dateA; 
+            
+            // 👉 新增防呆：如果遇到展延跟初次同天，用建單時間來比對，把額度退給最新的展延單
+            const timeA = new Date(formatAsDate(a['收單時間'])+' '+(formatAsTime(a['收單時間'])||'00:00:00'));
+            const timeB = new Date(formatAsDate(b['收單時間'])+' '+(formatAsTime(b['收單時間'])||'00:00:00'));
+            return timeB - timeA; 
         });
 
         let appDispensed = [];
@@ -412,7 +418,6 @@ function performDispenseCalculation(pid, qty, type, originalNo) {
             const basisId = app['申請單號'] || app['收單時間'];
             let netDispensed = 0;
             State.dispenseLogs.forEach(log => {
-                // 👉 雙重作廢檢查
                 if (String(log['病歷號']).toUpperCase() === pid && String(log['藥品代碼']).toUpperCase() === drugCode && log['作廢'] !== 'Y' && log['異動'] !== '作廢' && log['申請單號'] === basisId) {
                     netDispensed += parseInt(log['調劑數量'] || 0);
                     netDispensed -= parseInt(log['退藥數量'] || 0);
@@ -431,7 +436,6 @@ function performDispenseCalculation(pid, qty, type, originalNo) {
         if (originalNo && originalNo !== "手動無單號") {
              let involvedBasisIds = new Set();
              State.dispenseLogs.forEach(log => {
-                // 👉 雙重作廢檢查
                 if (String(log['病歷號']).toUpperCase() === pid && String(log['藥品代碼']).toUpperCase() === drugCode && log['作廢'] !== 'Y' && log['異動'] !== '作廢' && log['領藥號'] === originalNo) {
                     involvedBasisIds.add(log['申請單號']);
                 }
@@ -456,6 +460,7 @@ function performDispenseCalculation(pid, qty, type, originalNo) {
         return { success: true, deductionPlan: returnPlan, totalAvailableRemaining: totalDispensed };
     }
 
+    // ==== 調劑發藥 ====
     const controlDays = parseInt(drug['管制天數'] || 14);
     const today = new Date();
     today.setHours(0,0,0,0);
@@ -472,7 +477,14 @@ function performDispenseCalculation(pid, qty, type, originalNo) {
     validApps.sort((a,b) => {
         const dateA = new Date(formatAsDate(a['啟用日期'] || a['收單時間']));
         const dateB = new Date(formatAsDate(b['啟用日期'] || b['收單時間']));
-        return dateA - dateB; 
+        
+        // 越舊的單據優先扣除額度 (FIFO)
+        if (dateA.getTime() !== dateB.getTime()) return dateA - dateB; 
+        
+        // 👉 新增防呆：因為初次與展延的「啟用日期」是同一天，我們必須用收單時間來排隊，確保先扣乾初次單！
+        const timeA = new Date(formatAsDate(a['收單時間'])+' '+(formatAsTime(a['收單時間'])||'00:00:00'));
+        const timeB = new Date(formatAsDate(b['收單時間'])+' '+(formatAsTime(b['收單時間'])||'00:00:00'));
+        return timeA - timeB; 
     });
 
     let totalRem = 0;
@@ -483,7 +495,6 @@ function performDispenseCalculation(pid, qty, type, originalNo) {
         let usedQty = 0;
         
         State.dispenseLogs.forEach(log => {
-            // 👉 雙重作廢檢查
             if (String(log['病歷號']).toUpperCase() === pid && 
                 String(log['藥品代碼']).toUpperCase() === drugCode && 
                 log['作廢'] !== 'Y' && log['異動'] !== '作廢' && 
