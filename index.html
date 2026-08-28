@@ -95,16 +95,14 @@
               </select>
             </div>
           </div>
-          <!-- 👉 加上跟其他頁面一樣的高度限制 (max-height) 與捲動效果 (overflow-y) -->
           <div class="card-body p-0" style="max-height: 500px; overflow-y: auto;">
             <div class="table-responsive" id="single-drug-records-table"></div>
           </div>
         </div>
+      </div>
 
-<!-- 視圖 3: 填寫申請單 -->
       <div id="view-application" class="view-section d-none-important">
         <div class="row g-4">
-          <!-- 👉 左半部：表單操作區 -->
           <div class="col-lg-5 col-xl-5">
             <button class="btn btn-sm btn-secondary mb-3" onclick="switchView('drug-dashboard')"><i class="bi bi-arrow-left"></i> 返回 <span id="app-back-drug-name"></span></button>
             <h3 class="mb-3 text-primary fw-bold">📝 填寫申請單 (<span id="app-form-drug-name" class="text-danger"></span>)</h3>
@@ -150,7 +148,6 @@
             </div>
           </div>
           
-          <!-- 👉 右半部：紀錄區 (加入高度限制與捲動) -->
           <div class="col-lg-7 col-xl-7">
             <div class="card shadow-sm border-0 h-100">
               <div class="card-header bg-white d-flex justify-content-between align-items-center">
@@ -180,10 +177,8 @@
         </div>
       </div>
 
-<!-- 視圖 4: 調劑作業 -->
       <div id="view-dispense" class="view-section d-none-important">
         <div class="row g-4">
-          <!-- 👉 左半部：調劑操作區 -->
           <div class="col-lg-5 col-xl-5">
             <button class="btn btn-sm btn-secondary mb-3" onclick="switchView('drug-dashboard')"><i class="bi bi-arrow-left"></i> 返回 <span id="disp-back-drug-name"></span></button>
             <h3 class="mb-4 text-success fw-bold">💊 調劑剩餘量檢核 (<span id="disp-form-drug-name" class="text-danger"></span>)</h3>
@@ -236,7 +231,6 @@
             <div id="disp-check-result" class="alert alert-info mt-2 mb-3 d-none-important"></div>
           </div>
           
-          <!-- 👉 右半部：調劑紀錄區 -->
           <div class="col-lg-7 col-xl-7">
             <div class="card shadow-sm border-0 h-100">
               <div class="card-header bg-white d-flex justify-content-between align-items-center">
@@ -262,7 +256,6 @@
         </div>
       </div>
 
-<!-- 視圖 5: 藥品主檔維護 (更新為全局限制模式) -->
       <div id="view-drug-manage" class="view-section d-none-important">
         <h3 class="mb-4 text-secondary fw-bold">⚙️ 藥品主檔維護</h3>
         <div class="row">
@@ -275,7 +268,6 @@
                 <div class="mb-2"><label class="form-label small fw-bold">藥品名稱</label><input type="text" id="drug-name" class="form-control" required></div>
                 <div class="mb-3"><label class="form-label small fw-bold">管制天數</label><input type="number" id="drug-control-days" class="form-control" value="14" required></div>
                 
-                <!-- 👉 新增：全局每次最大天數與數量 -->
                 <div class="row mb-3">
                   <div class="col-6"><label class="form-label small fw-bold text-danger">每次最大申請天數</label><input type="number" id="drug-global-max-days" class="form-control border-danger" required></div>
                   <div class="col-6"><label class="form-label small fw-bold text-danger">每次最大申請量</label><input type="number" id="drug-global-max-qty" class="form-control border-danger" required></div>
@@ -324,8 +316,7 @@
     </div>
   </div>
 
-  <!-- 👉 新增：無條碼手動輸入的專屬表單視窗 -->
-<div class="modal fade" id="manualDispenseModalElement" tabindex="-1">
+  <div class="modal fade" id="manualDispenseModalElement" tabindex="-1">
     <div class="modal-dialog">
       <div class="modal-content">
         <div class="modal-header bg-secondary text-white">
@@ -342,7 +333,6 @@
               <label class="form-label fw-bold">數量 <span class="text-danger">*</span></label>
               <input type="number" id="manual-qty" class="form-control" required min="1">
             </div>
-            <!-- 👉 新增：將領藥號與退藥號並排 -->
             <div class="row g-2 mb-3">
               <div class="col-6">
                 <label class="form-label fw-bold">領藥號</label>
@@ -364,7 +354,6 @@
     </div>
   </div>
 
-<!-- 👉 資料異動 (作廢/還原) 專用表單 -->
   <div class="modal fade" id="recordActionModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
       <div class="modal-content">
@@ -389,7 +378,6 @@
               </div>
               <div class="col-md-4">
                 <label class="form-label fw-bold text-primary">異動單位 (可更改)</label>
-                <!-- 👉 改為下拉選單 -->
                 <select id="action-unit" class="form-select border-primary" required></select>
               </div>
             </div>
@@ -398,7 +386,7 @@
 
             <div class="mb-3">
               <label class="form-label fw-bold text-danger">異動備註 / 理由 <span class="text-muted small">(必填)</span></label>
-              <textarea id="action-note" class="form-control border-danger" rows="2" required placeholder="請務必輸入作廢或還原的原因..."></textarea>
+              <textarea id="action-note" class="form-control border-danger" rows="2" required placeholder="請務必輸入作廢的原因..."></textarea>
             </div>
             
             <button type="submit" id="btn-submit-action" class="btn btn-primary w-100 fw-bold shadow-sm">確認執行異動</button>
