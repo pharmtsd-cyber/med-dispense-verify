@@ -75,7 +75,6 @@ window.renderDispenseHistory = function() {
             if(startStr && logDateStr < startStr) return;
             if(endStr && logDateStr > endStr) return;
 
-            // 👉 雙重作廢檢查
             const isVoid = log['作廢'] === 'Y' || log['異動'] === '作廢';
             const logTypeStr = log['調劑類別'] || log['選擇調劑或退藥'] || '調劑';
             const isDispense = logTypeStr.includes('調劑');
@@ -104,7 +103,7 @@ window.renderDispenseHistory = function() {
             }
 
             const logId = log['調劑流水號'] || log['申請單號']; 
-// 👉 若已作廢，只顯示灰色的「已作廢」標籤，不提供任何按鈕
+            
             const actionButtons = isVoid 
               ? `<span class="badge bg-secondary opacity-75">已作廢</span>`
               : `<div class="btn-group btn-group-sm shadow-sm">
@@ -118,7 +117,7 @@ window.renderDispenseHistory = function() {
                 <td class="fw-bold ${isVoid ? '' : 'text-primary'}">${logPid}</td>
                 <td><span class="badge ${isVoid ? 'bg-secondary' : (isDispense ? 'bg-success' : 'bg-danger')}">${displayBadgeStr}</span></td>
                 <td class="fw-bold ${isVoid ? '' : (isDispense ? 'text-success' : 'text-danger')}">${displayQty > 0 ? '+' : ''}${displayQty}</td>
-                <td class="small">${noHtml}</td>
+                <td class="small text-muted">${noHtml}</td>
                 <td>${basisHtml}</td>
                 <td>${actionButtons}</td>
             </tr>`;
@@ -312,7 +311,6 @@ async function executeDispenseFlow(pid, qty, type, no, retNo, note, inputMethod)
         return false;
     }
 
-    // 👉 核心修正：前端精準產生流水號，消滅幽靈 Bug
     const now = new Date();
     const yyyy = now.getFullYear();
     const mm = String(now.getMonth() + 1).padStart(2, '0');
@@ -322,7 +320,6 @@ async function executeDispenseFlow(pid, qty, type, no, retNo, note, inputMethod)
     const ss = String(now.getSeconds()).padStart(2, '0');
 
     const user = JSON.parse(sessionStorage.getItem("currentUser"));
-    const signedQty = (type === '調劑') ? -Math.abs(qty) : Math.abs(qty);
     const unitEl = document.querySelector('input[name="disp-unit-radio"]:checked');
     const selectedUnit = unitEl ? unitEl.value : (user.unit || "");
     
@@ -330,7 +327,6 @@ async function executeDispenseFlow(pid, qty, type, no, retNo, note, inputMethod)
     let splitIndex = 1;
 
     for (let plan of checkResult.deductionPlan) {
-        // 生成如 DIS-20260828-114932-1 的唯一 ID
         const generatedDispId = `DIS-${yyyy}${mm}${dd}-${hh}${min}${ss}-${splitIndex++}`;
         const splitQty = plan.deductQty;
         const splitSignedQty = (type === '調劑') ? -Math.abs(splitQty) : Math.abs(splitQty);
@@ -399,11 +395,8 @@ function performDispenseCalculation(pid, qty, type, originalNo) {
         allPatientApps.sort((a,b) => {
             const dateA = new Date(formatAsDate(a['啟用日期'] || a['收單時間']));
             const dateB = new Date(formatAsDate(b['啟用日期'] || b['收單時間']));
-            
-            // 越新的單據優先被退回額度
             if (dateB.getTime() !== dateA.getTime()) return dateB - dateA; 
             
-            // 👉 新增防呆：如果遇到展延跟初次同天，用建單時間來比對，把額度退給最新的展延單
             const timeA = new Date(formatAsDate(a['收單時間'])+' '+(formatAsTime(a['收單時間'])||'00:00:00'));
             const timeB = new Date(formatAsDate(b['收單時間'])+' '+(formatAsTime(b['收單時間'])||'00:00:00'));
             return timeB - timeA; 
@@ -458,7 +451,6 @@ function performDispenseCalculation(pid, qty, type, originalNo) {
         return { success: true, deductionPlan: returnPlan, totalAvailableRemaining: totalDispensed };
     }
 
-    // ==== 調劑發藥 ====
     const controlDays = parseInt(drug['管制天數'] || 14);
     const today = new Date();
     today.setHours(0,0,0,0);
@@ -475,11 +467,8 @@ function performDispenseCalculation(pid, qty, type, originalNo) {
     validApps.sort((a,b) => {
         const dateA = new Date(formatAsDate(a['啟用日期'] || a['收單時間']));
         const dateB = new Date(formatAsDate(b['啟用日期'] || b['收單時間']));
-        
-        // 越舊的單據優先扣除額度 (FIFO)
         if (dateA.getTime() !== dateB.getTime()) return dateA - dateB; 
         
-        // 👉 新增防呆：因為初次與展延的「啟用日期」是同一天，我們必須用收單時間來排隊，確保先扣乾初次單！
         const timeA = new Date(formatAsDate(a['收單時間'])+' '+(formatAsTime(a['收單時間'])||'00:00:00'));
         const timeB = new Date(formatAsDate(b['收單時間'])+' '+(formatAsTime(b['收單時間'])||'00:00:00'));
         return timeA - timeB; 
