@@ -95,9 +95,11 @@
               </select>
             </div>
           </div>
-          <div class="card-body"><div class="table-responsive" id="single-drug-records-table"></div></div>
+          <!-- 👉 加上跟其他頁面一樣的高度限制 (max-height) 與捲動效果 (overflow-y) -->
+          <div class="card-body p-0" style="max-height: 500px; overflow-y: auto;">
+            <div class="table-responsive" id="single-drug-records-table"></div>
+          </div>
         </div>
-      </div>
 
 <!-- 視圖 3: 填寫申請單 -->
       <div id="view-application" class="view-section d-none-important">
