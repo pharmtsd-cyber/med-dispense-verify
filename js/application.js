@@ -1,10 +1,7 @@
-// js/application.js
-
 let lockedStartDateStr = ""; 
 let absoluteMaxEndDate = new Date(0); 
 let globalMaxDays = 0;
 let globalMaxQty = 0;
-// 👉 新增全域變數，紀錄本次療程「還能展延多少」
 let cycleRemainingDays = 0; 
 let cycleRemainingQty = 0;
 
@@ -100,12 +97,9 @@ function renderAppHistory() {
       const timeB = new Date(formatAsDate(b['收單時間'])+' '+(formatAsTime(b['收單時間'])||'00:00:00'));
       return timeB - timeA; 
   });
-  
-// 在 js/application.js 中，替換 renderAppHistory 函數裡面的 forEach 迴圈區塊：
 
   let html = "";
   sortedApps.forEach(app => {
-    // 👉 修正：移除 app['作廢'] !== 'Y' 的過濾條件，讓所有紀錄都顯示
     if(String(app['藥品代碼']).toUpperCase() === State.currentSelectedDrugCode) {
       const appPid = String(app['病歷號']).toUpperCase();
       if(pidFilter && !appPid.includes(pidFilter)) return;
@@ -120,13 +114,11 @@ function renderAppHistory() {
       checkDate.setHours(0, 0, 0, 0);
       const isWithinControl = (checkDate >= cutoffDate);
       
-      const isVoid = app['作廢'] === 'Y';
-      // 👉 若作廢，給予灰色底與刪除線樣式
+      const isVoid = app['作廢'] === 'Y' || app['異動'] === '作廢';
       const rowClass = isVoid ? 'bg-light text-muted text-decoration-line-through opacity-75' : (isWithinControl ? 'table-warning' : '');
       const badgeHtml = (!isVoid && isWithinControl) ? `<br><span class="badge bg-danger mt-1 shadow-sm"><i class="bi bi-shield-lock"></i> 管制期內</span>` : '';
       const appId = app['申請單號'] || app['收單時間'];
 
-// 👉 若已作廢，只顯示灰色的「已作廢」標籤，不提供任何按鈕
       const actionButtons = isVoid 
         ? `<span class="badge bg-secondary opacity-75">已作廢</span>`
         : `<div class="btn-group btn-group-sm shadow-sm">
@@ -140,7 +132,7 @@ function renderAppHistory() {
         <td><span class="badge ${isVoid ? 'bg-secondary' : 'bg-info text-dark'}">${app['申請類別']}</span></td>
         <td class="fw-bold">${app['申請天數']} 天 / ${app['申請數量']} 支</td>
         <td class="small">${app['處理單位']}</td>
-        <td>${actionButtons}</td> <!-- 插入按鈕 -->
+        <td>${actionButtons}</td>
       </tr>`;
     }
   });
@@ -194,7 +186,7 @@ document.addEventListener("DOMContentLoaded", () => {
       let hasUsedBreakInControlPeriod = false; 
 
       State.applications.forEach(app => {
-        if (String(app['病歷號']).toUpperCase() === pid && String(app['藥品代碼']).toUpperCase() === drugCode && app['作廢'] !== 'Y') {
+        if (String(app['病歷號']).toUpperCase() === pid && String(app['藥品代碼']).toUpperCase() === drugCode && app['作廢'] !== 'Y' && app['異動'] !== '作廢') {
           
           const appDate = new Date(formatAsDate(app['申請日期'] || app['收單時間']));
           appDate.setHours(0, 0, 0, 0);
@@ -236,15 +228,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
         lockedStartDateStr = latestActDateStr.replace(/\//g, '-');
         
-        // 👉 核心邏輯升級：精準計算「同一個療程」已經開了多少總天數與總量
         let cycleTotalQty = 0;
         let cycleTotalDays = 0;
         
         State.applications.forEach(app => {
-            if (String(app['病歷號']).toUpperCase() === pid && String(app['藥品代碼']).toUpperCase() === drugCode && app['作廢'] !== 'Y') {
+            if (String(app['病歷號']).toUpperCase() === pid && String(app['藥品代碼']).toUpperCase() === drugCode && app['作廢'] !== 'Y' && app['異動'] !== '作廢') {
                 let thisActDateStr = formatAsDate(app['啟用日期']);
                 if (!thisActDateStr) thisActDateStr = formatAsDate(app['收單時間']);
-                // 只要啟用日期一樣，就算在同一個療程 (初次+展延)
                 if (thisActDateStr === latestActDateStr) {
                     cycleTotalQty += parseInt(app['申請數量'] || 0);
                     cycleTotalDays += parseInt(app['申請天數'] || 0);
@@ -252,7 +242,6 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
 
-        // 算出本次展延還能開多少 (全局上限 - 已經開過的總和)
         cycleRemainingQty = Math.max(0, globalMaxQty - cycleTotalQty);
         cycleRemainingDays = Math.max(0, globalMaxDays - cycleTotalDays);
 
@@ -319,7 +308,6 @@ document.addEventListener("DOMContentLoaded", () => {
       inputAppDays.readOnly = false;
       inputAppQty.readOnly = false;
 
-      // 👉 核心修復：當選擇展延時，自動帶入「剩餘可展延數量」，而不是合併上限
       if (catType === "EXTENSION" && lockedStartDateStr) {
           inputAppDays.value = Math.min(cDefDays, cycleRemainingDays);
           inputAppQty.value = Math.min(cDefQty, cycleRemainingQty);
@@ -330,7 +318,6 @@ document.addEventListener("DOMContentLoaded", () => {
           document.getElementById("app-start-date").value = lockedStartDateStr;
           document.getElementById("app-start-date").readOnly = true;
       } else {
-          // 👉 初次或複陽，則帶入該類別預設值
           inputAppDays.value = cDefDays;
           inputAppQty.value = cDefQty;
           document.getElementById("lbl-max-days").innerText = `(全局上限 ${globalMaxDays})`;
@@ -339,7 +326,6 @@ document.addEventListener("DOMContentLoaded", () => {
           document.getElementById("app-start-date").readOnly = false;
           
           const today = new Date();
-          // 如果是複陽(新療程)，強制啟用日期必須在舊療程結束之後
           if (catType === "BREAK" && window.currentAbsoluteMaxEndDate > today) {
               document.getElementById("app-start-date").value = window.currentAbsoluteMaxEndDate.toISOString().split('T')[0];
           } else {
@@ -359,7 +345,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const reqDays = parseInt(inputAppDays.value);
     const reqQty = parseInt(inputAppQty.value);
 
-    // 👉 核心驗證：分開驗證展延單與初次/複陽單
     if (catType === "EXTENSION") {
         if(reqDays > cycleRemainingDays || reqQty > cycleRemainingQty) {
             alert(`⛔ 展延申請超額！\n本次療程最多僅能再展延:\n天數: ${cycleRemainingDays} 天\n數量: ${cycleRemainingQty} 支`); 
@@ -378,7 +363,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const startDateRaw = document.getElementById("app-start-date").value;
     const startDateStr = startDateRaw ? startDateRaw.replace(/-/g, '/') : formatAsDate(new Date()); 
     
-    // 防呆：複陽療程的啟用日期不能與舊療程重疊
     if (catType === "BREAK" && new Date(startDateStr) < window.currentAbsoluteMaxEndDate) {
         alert(`⛔ 複陽/新療程的啟用日期不可與前次重疊！\n前次療程將於 ${formatAsDate(window.currentAbsoluteMaxEndDate)} 結束，您必須選取此日期或更晚的日期。`);
         return;
