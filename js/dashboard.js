@@ -196,25 +196,26 @@ function refreshSingleDrugDashboard() {
   
   records.sort((a, b) => new Date(b.date + ' ' + b.time) - new Date(a.date + ' ' + a.time));
   
-  let html = `<table class="table table-hover align-middle text-center mb-0"><thead class="table-light small"><tr><th>時間</th><th>病歷號</th><th>動作</th><th>數量</th><th>單號 / 領藥號</th><th>操作單位/人員</th><th>異動</th></tr></thead><tbody>`;
+  // 👉 加上 sticky top 讓表頭在往下滾動時不會消失
+  let html = `<table class="table table-hover align-middle text-center mb-0"><thead class="table-light small" style="position: sticky; top: 0; z-index: 1;"><tr><th>時間</th><th>病歷號</th><th>動作</th><th>數量</th><th>單號 / 領藥號</th><th>操作單位/人員</th><th>異動</th></tr></thead><tbody>`;
+  
   records.forEach(r => {
     const pid = String(r.data['病歷號']).toUpperCase();
     const user = r.data['藥師姓名'] || '-';
     const unit = r.data['處理單位'] || '-';
+    
     // 👉 雙重作廢檢查
     const isVoid = r.data['作廢'] === 'Y' || r.data['異動'] === '作廢';
     const rowClass = isVoid ? 'bg-light text-muted text-decoration-line-through opacity-75' : '';
     
     const logId = r.type === 'APP' ? r.data['申請單號'] : (r.data['調劑流水號'] || r.data['申請單號']);
 
-    const actionButtons = `
-      <div class="btn-group btn-group-sm shadow-sm">
-        ${isVoid 
-          ? `<button class="btn btn-outline-success" onclick="openActionModal('${r.type}', 'RESTORE', '${logId}')">還原</button>`
-          : `<button class="btn btn-outline-danger" onclick="openActionModal('${r.type}', 'VOID', '${logId}')">作廢</button>`
-        }
-      </div>
-    `;
+    // 👉 拔除還原與修改按鈕，只留作廢與已作廢標籤
+    const actionButtons = isVoid 
+      ? `<span class="badge bg-secondary opacity-75">已作廢</span>`
+      : `<div class="btn-group btn-group-sm shadow-sm">
+           <button class="btn btn-outline-danger" onclick="openActionModal('${r.type}', 'VOID', '${logId}')">作廢</button>
+         </div>`;
 
     if(r.type === 'APP') {
         html += `<tr class="${rowClass}">
