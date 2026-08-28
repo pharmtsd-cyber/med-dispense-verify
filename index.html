@@ -178,10 +178,7 @@
         </div>
       </div>
 
-      <!-- 視圖 4: 調劑作業 -->
-      <div id="view-dispense" class="view-section d-none-important">
-        <div class="row g-4">
-          <!-- 👉 左半部：調劑操作區 -->
+<!-- 👉 左半部：調劑操作區 -->
           <div class="col-lg-5 col-xl-5">
             <button class="btn btn-sm btn-secondary mb-3" onclick="switchView('drug-dashboard')"><i class="bi bi-arrow-left"></i> 返回 <span id="disp-back-drug-name"></span></button>
             <h3 class="mb-4 text-success fw-bold">💊 調劑剩餘量檢核 (<span id="disp-form-drug-name" class="text-danger"></span>)</h3>
@@ -198,32 +195,35 @@
                     </div>
                   </div>
                   <div class="col-12"><label class="form-label text-muted small fw-bold mb-1 d-block">處理單位</label><div id="disp-unit-group" class="btn-group flex-wrap" role="group"></div></div>
+                  
+                  <!-- 👉 調整：按鈕放在同一列，節省空間且直覺 -->
                   <div class="col-12 mt-2">
                     <label class="form-label text-dark small fw-bold mb-1 d-block">作業類別 / 手動作業</label>
                     <div class="d-flex gap-2 align-items-center">
-                      <div class="btn-group shadow-sm" role="group" style="width: 100%;">
+                      <div class="btn-group shadow-sm" role="group" style="flex: 1;">
                         <input type="radio" class="btn-check" name="disp-type" id="disp-type-disp" value="調劑" autocomplete="off" checked>
                         <label class="btn btn-outline-success fw-bold" for="disp-type-disp">調劑發藥</label>
                         <input type="radio" class="btn-check" name="disp-type" id="disp-type-ret" value="退藥" autocomplete="off">
                         <label class="btn btn-outline-danger fw-bold" for="disp-type-ret">退藥作業</label>
                       </div>
+                      <button class="btn btn-secondary shadow-sm" type="button" style="flex: 1;" onclick="manualDispenseModal()"><i class="bi bi-keyboard"></i> 無條碼手動</button>
                     </div>
                   </div>
-                  <div class="col-12 mt-1">
-                      <button class="btn btn-secondary shadow-sm w-100" type="button" onclick="manualDispenseModal()"><i class="bi bi-keyboard"></i> 無條碼手動輸入</button>
+
+                  <!-- 👉 調整：將備註欄位移至掃描區上方，並放在一般操作區卡片內 -->
+                  <div class="col-12 mt-3 border-top pt-2">
+                    <label class="form-label text-dark fw-bold small mb-1"><i class="bi bi-pencil-square"></i> 調劑備註 / 退藥理由 (選填，請先填寫)</label>
+                    <input type="text" id="disp-note-input" class="form-control mb-1" placeholder="📝 若需備註請在此輸入...">
                   </div>
                 </div>
               </div>
             </div>
 
+            <!-- 掃描區只保留輸入框，純粹化 -->
             <div class="card shadow-sm mb-3 border-success" id="disp-scan-card">
               <div class="card-body bg-success bg-opacity-10" id="disp-scan-body">
                 <h5 class="text-success fw-bold mb-3" id="disp-scan-title"><i class="bi bi-upc-scan"></i> 條碼掃描區 (調劑模式 - 即時寫入)</h5>
                 <div class="row g-2">
-                  <div class="col-12">
-                    <label class="form-label text-success fw-bold small mb-1"><i class="bi bi-pencil-square"></i> 調劑備註 / 退藥理由 (選填，請先填寫)</label>
-                    <input type="text" id="disp-note-input" class="form-control border-success mb-2" placeholder="📝 若需備註請在此輸入...">
-                  </div>
                   <div class="col-12">
                     <input type="text" id="barcode-input" class="form-control border-success form-control-lg text-uppercase fw-bold text-center shadow-sm" placeholder="確認設定無誤後，請刷入藥袋條碼..." autofocus>
                   </div>
@@ -387,7 +387,8 @@
               </div>
               <div class="col-md-4">
                 <label class="form-label fw-bold text-primary">異動單位 (可更改)</label>
-                <input type="text" id="action-unit" class="form-control border-primary" required>
+                <!-- 👉 改為 select，並拔除編輯用的 dynamic container -->
+                <select id="action-unit" class="form-select border-primary" required></select>
               </div>
             </div>
 
