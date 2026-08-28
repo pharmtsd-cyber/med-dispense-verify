@@ -357,8 +357,7 @@ window.showAppDetails = function(appId) {
     modal.show();
 };
 
-// 👉 異動操作專用 Modal 引擎
-
+// 👉 異動操作專用 Modal 引擎 (純作廢/還原)
 window.openActionModal = function(recordType, action, recordId) {
     const user = JSON.parse(sessionStorage.getItem("currentUser"));
     if (!user) return alert("請先登入！");
@@ -385,7 +384,7 @@ window.openActionModal = function(recordType, action, recordId) {
     document.getElementById('action-emp-id').value = user.id;
     document.getElementById('action-emp-name').value = user.name;
     
-    // 👉 動態生成單位下拉選單，並預設帶入目前畫面上選擇的單位
+    // 動態生成單位下拉選單
     const unitSelect = document.getElementById('action-unit');
     unitSelect.innerHTML = '<option value="" disabled>-- 請選擇單位 --</option>';
     State.unitData.forEach(u => {
@@ -401,9 +400,8 @@ window.openActionModal = function(recordType, action, recordId) {
     const title = document.getElementById('action-modal-title');
     const btn = document.getElementById('btn-submit-action');
     const dynamicContainer = document.getElementById('action-dynamic-fields');
-    dynamicContainer.innerHTML = ""; // 已經不需要動態欄位
+    dynamicContainer.innerHTML = ""; 
 
-    // 👉 移除 EDIT，只保留 VOID 與 RESTORE
     if (action === 'VOID') {
         header.className = "modal-header text-white bg-danger";
         title.innerHTML = `<i class="bi bi-trash"></i> 作廢資料 [${record[pkField] || recordId}]`;
