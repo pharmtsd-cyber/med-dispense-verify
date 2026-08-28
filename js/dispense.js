@@ -103,6 +103,7 @@ window.renderDispenseHistory = function() {
             }
 
             const logId = log['調劑流水號'] || log['申請單號']; 
+// 👉 移除修改按鈕，只留作廢與還原
             const actionButtons = `
               <div class="btn-group btn-group-sm shadow-sm">
                 ${isVoid 
