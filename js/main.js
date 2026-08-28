@@ -367,7 +367,21 @@ window.showAppDetails = function(appId) {
     modal.show();
 };
 
-// 👉 異動操作專用 Modal 引擎 (純作廢/還原)
+// 👉 背景心跳同步引擎：每 10 秒自動與雲端對帳，確保多機台額度一致！
+setInterval(() => {
+    // 只有在系統閒置（沒有在轉圈圈同步時）才默默更新
+    if (typeof window.smartSync === 'function') {
+        window.smartSync(false); 
+        // 若畫面停留在單一藥品，則默默更新右側表格 (不打斷左側輸入)
+        if (State.currentSelectedDrugCode && !document.getElementById('recordActionModal').classList.contains('show')) {
+            if (typeof renderAppHistory === "function") renderAppHistory();
+            if (typeof renderDispenseHistory === "function") renderDispenseHistory();
+        }
+    }
+}, 10000); // 10000 毫秒 = 10 秒
+
+
+// 👉 異動操作專用 Modal 引擎 (純作廢版)
 window.openActionModal = function(recordType, action, recordId) {
     const user = JSON.parse(sessionStorage.getItem("currentUser"));
     if (!user) return alert("請先登入！");
@@ -412,18 +426,13 @@ window.openActionModal = function(recordType, action, recordId) {
     const dynamicContainer = document.getElementById('action-dynamic-fields');
     dynamicContainer.innerHTML = ""; 
 
+    // 👉 唯一保留的作廢邏輯
     if (action === 'VOID') {
         header.className = "modal-header text-white bg-danger";
         title.innerHTML = `<i class="bi bi-trash"></i> 作廢資料 [${record[pkField] || recordId}]`;
         btn.className = "btn btn-danger w-100 fw-bold shadow-sm";
         btn.innerText = "確認作廢此筆紀錄";
         dynamicContainer.innerHTML = `<div class="col-12"><div class="alert alert-warning fw-bold mb-0">⚠️ 警告：作廢後，此筆紀錄將不再列入任何額度統計與計算，若有錯誤請重新填寫。</div></div>`;
-    } else if (action === 'RESTORE') {
-        header.className = "modal-header text-white bg-success";
-        title.innerHTML = `<i class="bi bi-arrow-counterclockwise"></i> 還原資料 [${record[pkField] || recordId}]`;
-        btn.className = "btn btn-success w-100 fw-bold shadow-sm";
-        btn.innerText = "確認還原此筆紀錄";
-        dynamicContainer.innerHTML = `<div class="col-12"><div class="alert alert-info fw-bold mb-0">💡 提示：還原後，此筆紀錄將重新加入額度計算。</div></div>`;
     }
 
     modal.show();
@@ -445,23 +454,18 @@ document.addEventListener("DOMContentLoaded", () => {
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 處理中...';
 
-            await window.smartSync(); 
+            await window.smartSync(true); 
 
             const now = new Date();
             let updatePayload = {
-                "異動": action === 'VOID' ? '作廢' : '還原',
+                "異動": '作廢', // 鎖死只有作廢
+                "作廢": 'Y',   // 雙重保險寫入
                 "異動單位": document.getElementById('action-unit').value,
                 "異動藥師員工編號": document.getElementById('action-emp-id').value,
                 "異動藥師姓名": document.getElementById('action-emp-name').value,
                 "異動時間": formatAsDate(now) + " " + formatAsTime(now),
                 "異動備註": document.getElementById('action-note').value.trim()
             };
-
-            if (action === 'VOID') {
-                updatePayload['作廢'] = 'Y';
-            } else if (action === 'RESTORE') {
-                updatePayload['作廢'] = 'N';
-            }
 
             const apiPayload = {
                 table: recordType === 'APP' ? 'Applications' : 'DispenseLogs',
@@ -482,9 +486,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (typeof refreshSingleDrugDashboard === "function") refreshSingleDrugDashboard();
 
                 bootstrap.Modal.getInstance(document.getElementById('recordActionModal')).hide();
-                alert("✅ 異動執行成功！");
+                alert("✅ 資料已成功作廢！");
             } else {
-                alert("❌ 異動失敗：" + res.message);
+                alert("❌ 作廢失敗：" + res.message);
             }
 
             btn.disabled = false;
