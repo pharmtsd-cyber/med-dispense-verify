@@ -362,7 +362,7 @@
     </div>
   </div>
 
-  <!-- 👉 新增：資料異動 (修改/作廢/還原) 專用表單 -->
+<!-- 👉 資料異動 (作廢/還原) 專用表單 -->
   <div class="modal fade" id="recordActionModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
       <div class="modal-content">
@@ -387,17 +387,16 @@
               </div>
               <div class="col-md-4">
                 <label class="form-label fw-bold text-primary">異動單位 (可更改)</label>
-                <!-- 👉 改為 select，並拔除編輯用的 dynamic container -->
+                <!-- 👉 改為下拉選單 -->
                 <select id="action-unit" class="form-select border-primary" required></select>
               </div>
             </div>
 
-            <!-- 動態生成的修改欄位會放在這裡 -->
             <div id="action-dynamic-fields" class="row g-3 mb-3 border-bottom pb-3"></div>
 
             <div class="mb-3">
               <label class="form-label fw-bold text-danger">異動備註 / 理由 <span class="text-muted small">(必填)</span></label>
-              <textarea id="action-note" class="form-control border-danger" rows="2" required placeholder="請務必輸入異動或作廢/還原的原因..."></textarea>
+              <textarea id="action-note" class="form-control border-danger" rows="2" required placeholder="請務必輸入作廢或還原的原因..."></textarea>
             </div>
             
             <button type="submit" id="btn-submit-action" class="btn btn-primary w-100 fw-bold shadow-sm">確認執行異動</button>
