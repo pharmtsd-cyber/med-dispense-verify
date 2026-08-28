@@ -226,7 +226,9 @@ document.addEventListener("DOMContentLoaded", () => {
                     scanTitle.innerHTML = '<i class="bi bi-upc-scan"></i> 條碼掃描區 (🔴 退藥模式 - 補回額度)';
                 }
                 if(barcodeInp) barcodeInp.classList.replace('border-success', 'border-danger');
-                if(noteInp) noteInp.classList.replace('border-success', 'border-danger');
+                // 👉 備註輸入框改成獨立變色
+                if(noteInp) noteInp.classList.add('border-danger');
+                if(noteInp) noteInp.classList.remove('border-success');
             } else {
                 if(scanCard) scanCard.classList.replace('border-danger', 'border-success');
                 if(scanBody) scanBody.classList.replace('bg-danger', 'bg-success');
@@ -235,7 +237,9 @@ document.addEventListener("DOMContentLoaded", () => {
                     scanTitle.innerHTML = '<i class="bi bi-upc-scan"></i> 條碼掃描區 (🟢 調劑模式 - 即時寫入)';
                 }
                 if(barcodeInp) barcodeInp.classList.replace('border-danger', 'border-success');
-                if(noteInp) noteInp.classList.replace('border-danger', 'border-success');
+                // 👉 備註輸入框改成獨立變色
+                if(noteInp) noteInp.classList.add('border-success');
+                if(noteInp) noteInp.classList.remove('border-danger');
             }
         });
     });
