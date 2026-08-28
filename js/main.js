@@ -1,8 +1,4 @@
-// js/main.js 的最上方替換為：
-
 document.addEventListener("DOMContentLoaded", async () => {
-  
-  // 👉 新增：動態讀取 config.js 中的天數設定，並顯示在畫面上
   const daysText = (typeof LOAD_HISTORY_DAYS !== 'undefined' && LOAD_HISTORY_DAYS > 0) ? LOAD_HISTORY_DAYS : "全部";
   const displayEl = document.getElementById("history-days-display");
   const overviewTitleEl = document.getElementById("overview-history-days");
@@ -10,7 +6,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   if(displayEl) displayEl.innerHTML = `<i class="bi bi-database-check"></i> 快取範圍: 近 ${daysText} 天`;
   if(overviewTitleEl) overviewTitleEl.innerText = `(資料範圍: 近 ${daysText} 天)`;
 
-  // 底下維持原本的日期設定邏輯...
   const today = new Date();
   const priorDate = new Date(new Date().setDate(today.getDate() - 14));
   const priorDate2 = new Date(new Date().setDate(today.getDate() - 2));
@@ -39,12 +34,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 });
 
-// ================= 登入邏輯 =================
 async function initLogin() {
   document.getElementById("login-container").classList.remove("d-none-important");
   document.getElementById("app-container").classList.add("d-none-important");
   
-  // 登入前同時載入員工與單位資料
   State.employeeData = await fetchData('getEmployeeData');
   State.unitData = await fetchData('getUnits');
   
@@ -52,7 +45,6 @@ async function initLogin() {
     document.getElementById("loading-msg").classList.add("d-none-important");
     document.getElementById("login-form").classList.remove("d-none-important");
     
-    // 填入登入單位選項
     const loginUnitSelect = document.getElementById("login-unit-select");
     if(loginUnitSelect && State.unitData.length > 0) {
       let unitOpts = '<option value="" selected disabled>-- 請選擇登入單位 --</option>';
@@ -68,11 +60,9 @@ async function initLogin() {
 
   document.getElementById("login-form").addEventListener("submit", (e) => {
     e.preventDefault();
-    // 統一轉大寫
     const inputId = document.getElementById("employee-input").value.trim().toUpperCase();
     const loginUnit = document.getElementById("login-unit-select").value;
     
-    // 尋找員工時也將來源轉大寫比對，避免大小寫不一
     const selectedEmp = State.employeeData.find(emp => String(emp['員工編號']).toUpperCase() === inputId);
     
     if (selectedEmp) {
@@ -80,7 +70,7 @@ async function initLogin() {
         id: inputId, 
         name: selectedEmp['姓名'], 
         role: selectedEmp['權限'],
-        unit: loginUnit // 紀錄登入單位
+        unit: loginUnit 
       };
       sessionStorage.setItem("currentUser", JSON.stringify(user));
       window.location.reload(); 
@@ -95,8 +85,6 @@ function logout() {
   sessionStorage.removeItem("currentUser");
   window.location.reload();
 }
-
-// ================= 系統初始化 =================
 
 async function initApp(user) {
   document.getElementById("login-container").classList.add("d-none-important");
@@ -140,13 +128,11 @@ async function initApp(user) {
   
   populateUnitSelects();
   
-  // 👉 修正：精準對應「空白欄位五」作為主管權限判斷
   const managerSelect = document.getElementById("app-manager");
   if(managerSelect && State.employeeData) {
       let mgrHtml = '<option value="">-- 請選擇簽核主管 --</option>';
       State.employeeData.forEach(emp => {
           let isManager = false;
-          // 直接鎖定「空白欄位五」是否為「是」
           if (emp['空白欄位五'] === '是' || emp['主管權限'] === '是' || emp['主管'] === '是') {
               isManager = true;
           } else {
@@ -169,11 +155,9 @@ let lastSyncTimestamp = 0;
 let isSmartSyncing = false;
 let smartSyncPromise = null;
 
-// 👉 升級版：帶有「作廢金鐘罩」的智能同步引擎
 window.smartSync = async function(force = false) {
     const now = Date.now();
     
-    // 15 秒快取護盾
     if (!force && (now - lastSyncTimestamp < 15000)) {
         return true; 
     }
@@ -183,7 +167,6 @@ window.smartSync = async function(force = false) {
     isSmartSyncing = true;
     smartSyncPromise = (async () => {
         try {
-            // 🛡️ 作廢金鐘罩：在抓取雲端前，先記下本地端「已經作廢」的單號
             const localAppVoids = {};
             State.applications.forEach(a => { if(a['作廢']==='Y' || a['異動']==='作廢') localAppVoids[a['申請單號']] = true; });
             
@@ -198,7 +181,6 @@ window.smartSync = async function(force = false) {
                 const cloudApps = syncData.applications || [];
                 const cloudDisp = syncData.dispenseLogs || [];
                 
-                // 🛡️ 套用防護：即使雲端資料因為延遲而沒有作廢標記，只要本地有記住，就強制覆寫為作廢！
                 cloudApps.forEach(a => { if(localAppVoids[a['申請單號']]) { a['作廢'] = 'Y'; a['異動'] = '作廢'; } });
                 cloudDisp.forEach(d => { if(localDispVoids[d['調劑流水號'] || d['申請單號']]) { d['作廢'] = 'Y'; d['異動'] = '作廢'; } });
                 
@@ -245,19 +227,14 @@ window.smartSync = async function(force = false) {
     return smartSyncPromise;
 };
 
-// 👉 強化版：強制同步按鈕
 window.forceSyncData = async function() {
   if(!checkNetwork()) return;
-  
-  // 讓側邊欄的按鈕顯示轉圈圈，體驗更好
   const btn = document.querySelector('a[onclick="forceSyncData()"]');
   const originalHtml = btn ? btn.innerHTML : '';
   if (btn) btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> 正在與雲端同步...';
   
-  // 傳入 true，啟動 100% 雲端覆蓋模式
   await window.smartSync(true); 
   
-  // 👉 確保所有畫面都會被重新渲染
   if (State.currentSelectedDrugCode) {
     if (typeof refreshSingleDrugDashboard === "function") refreshSingleDrugDashboard();
     if (typeof renderAppHistory === "function") renderAppHistory();
@@ -308,7 +285,6 @@ function switchView(viewId, element = null) {
   }
 }
 
-// ================= 重選藥師 (Enter 鍵觸發) =================
 function enablePharmacistChange(prefix) {
   const inputId = document.getElementById(`${prefix}-pharmacist-id`);
   const inputName = document.getElementById(`${prefix}-pharmacist-name`);
@@ -338,7 +314,6 @@ function enablePharmacistChange(prefix) {
   inputId.addEventListener('keypress', inputId._phHandler);
 }
 
-// 👉 統一收納：申請單明細彈窗 (供所有視圖共用)
 window.showAppDetails = function(appId) {
     const app = State.applications.find(a => a['申請單號'] === appId || a['收單時間'] === appId);
     const contentDiv = document.getElementById("appDetailContent");
@@ -367,21 +342,14 @@ window.showAppDetails = function(appId) {
     modal.show();
 };
 
-// 👉 替換原本的 setInterval 背景心跳引擎：加入防火牆友善與休眠機制
 let heartbeatTimer = null;
-
 function startHeartbeat() {
     if (heartbeatTimer) clearInterval(heartbeatTimer);
-    
-    // 放寬至 60 秒 (60000 毫秒)，大幅降低醫院防火牆與 Google API 負擔
     heartbeatTimer = setInterval(() => {
-        // 🛡️ 防火牆友善機制 1：如果網頁被縮小或切換到背景，停止發送背景請求！
         if (document.hidden) return;
-        
         if (typeof window.smartSync === 'function') {
             window.smartSync(false).then(() => {
                 const actionModal = document.getElementById('recordActionModal');
-                // 若畫面停留在單一藥品，且沒有打開異動表單，才默默更新畫面
                 if (State.currentSelectedDrugCode && (!actionModal || !actionModal.classList.contains('show'))) {
                     if (typeof renderAppHistory === "function") renderAppHistory();
                     if (typeof renderDispenseHistory === "function") renderDispenseHistory();
@@ -391,10 +359,8 @@ function startHeartbeat() {
     }, 60000); 
 }
 
-// 啟動心跳引擎
 startHeartbeat();
 
-// 🛡️ 防火牆友善機制 2：當使用者將視窗切換回這個網頁 (喚醒) 時，立刻觸發一次同步
 document.addEventListener("visibilitychange", () => {
     if (!document.hidden && typeof window.smartSync === 'function') {
         window.smartSync(false).then(() => {
@@ -407,8 +373,6 @@ document.addEventListener("visibilitychange", () => {
     }
 });
 
-
-// 👉 異動操作專用 Modal 引擎 (純作廢版)
 window.openActionModal = function(recordType, action, recordId) {
     const user = JSON.parse(sessionStorage.getItem("currentUser"));
     if (!user) return alert("請先登入！");
@@ -435,7 +399,6 @@ window.openActionModal = function(recordType, action, recordId) {
     document.getElementById('action-emp-id').value = user.id;
     document.getElementById('action-emp-name').value = user.name;
     
-    // 動態生成單位下拉選單
     const unitSelect = document.getElementById('action-unit');
     unitSelect.innerHTML = '<option value="" disabled>-- 請選擇單位 --</option>';
     State.unitData.forEach(u => {
@@ -453,13 +416,12 @@ window.openActionModal = function(recordType, action, recordId) {
     const dynamicContainer = document.getElementById('action-dynamic-fields');
     dynamicContainer.innerHTML = ""; 
 
-    // 👉 唯一保留的作廢邏輯
     if (action === 'VOID') {
         header.className = "modal-header text-white bg-danger";
         title.innerHTML = `<i class="bi bi-trash"></i> 作廢資料 [${record[pkField] || recordId}]`;
         btn.className = "btn btn-danger w-100 fw-bold shadow-sm";
         btn.innerText = "確認作廢此筆紀錄";
-        dynamicContainer.innerHTML = `<div class="col-12"><div class="alert alert-warning fw-bold mb-0">⚠️ 警告：作廢後，此筆紀錄將不再列入任何額度統計與計算，若有錯誤請重新填寫。</div></div>`;
+        dynamicContainer.innerHTML = `<div class="col-12"><div class="alert alert-warning fw-bold mb-0">⚠️ 警告：作廢後，此筆紀錄將不再列入任何額度統計與計算，無法還原。</div></div>`;
     }
 
     modal.show();
@@ -485,8 +447,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
             const now = new Date();
             let updatePayload = {
-                "異動": '作廢', // 鎖死只有作廢
-                "作廢": 'Y',   // 雙重保險寫入
+                "異動": '作廢', 
+                "作廢": 'Y',   
                 "異動單位": document.getElementById('action-unit').value,
                 "異動藥師員工編號": document.getElementById('action-emp-id').value,
                 "異動藥師姓名": document.getElementById('action-emp-name').value,
