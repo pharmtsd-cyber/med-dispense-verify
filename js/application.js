@@ -126,15 +126,12 @@ function renderAppHistory() {
       const badgeHtml = (!isVoid && isWithinControl) ? `<br><span class="badge bg-danger mt-1 shadow-sm"><i class="bi bi-shield-lock"></i> 管制期內</span>` : '';
       const appId = app['申請單號'] || app['收單時間'];
 
-      // 👉 新增異動操作按鈕列
-      const actionButtons = `
-        <div class="btn-group btn-group-sm shadow-sm">
-          ${isVoid 
-            ? `<button class="btn btn-outline-success" onclick="openActionModal('APP', 'RESTORE', '${appId}')">還原</button>`
-            : `<button class="btn btn-outline-danger" onclick="openActionModal('APP', 'VOID', '${appId}')">作廢</button>`
-          }
-        </div>
-      `;
+// 👉 若已作廢，只顯示灰色的「已作廢」標籤，不提供任何按鈕
+      const actionButtons = isVoid 
+        ? `<span class="badge bg-secondary opacity-75">已作廢</span>`
+        : `<div class="btn-group btn-group-sm shadow-sm">
+             <button class="btn btn-outline-danger" onclick="openActionModal('APP', 'VOID', '${appId}')">作廢</button>
+           </div>`;
 
       html += `<tr class="${rowClass}">
         <td>${formatAsDate(app['收單時間'])} ${formatAsTime(app['收單時間'])}</td>
