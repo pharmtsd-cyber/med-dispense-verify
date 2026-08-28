@@ -165,17 +165,15 @@ async function initApp(user) {
   if (typeof renderDrugManageTable === "function") renderDrugManageTable(); 
 }
 
-// 請將 js/main.js 內的 smartSync 與 forceSyncData 區塊完全替換為以下內容：
-
 let lastSyncTimestamp = 0;
 let isSmartSyncing = false;
 let smartSyncPromise = null;
 
-// 👉 升級版：智能無感同步引擎
+// 👉 升級版：帶有「作廢金鐘罩」的智能同步引擎
 window.smartSync = async function(force = false) {
     const now = Date.now();
     
-    // 15 秒快取護盾 (若是強制同步則無視護盾)
+    // 15 秒快取護盾
     if (!force && (now - lastSyncTimestamp < 15000)) {
         return true; 
     }
@@ -185,17 +183,29 @@ window.smartSync = async function(force = false) {
     isSmartSyncing = true;
     smartSyncPromise = (async () => {
         try {
+            // 🛡️ 作廢金鐘罩：在抓取雲端前，先記下本地端「已經作廢」的單號
+            const localAppVoids = {};
+            State.applications.forEach(a => { if(a['作廢']==='Y' || a['異動']==='作廢') localAppVoids[a['申請單號']] = true; });
+            
+            const localDispVoids = {};
+            State.dispenseLogs.forEach(d => { 
+                if(d['作廢']==='Y' || d['異動']==='作廢') localDispVoids[d['調劑流水號'] || d['申請單號']] = true; 
+            });
+
             const syncData = await fetchData(`getSyncData&days=${typeof LOAD_HISTORY_DAYS !== 'undefined' ? LOAD_HISTORY_DAYS : 0}`);
+            
             if (syncData) {
                 const cloudApps = syncData.applications || [];
                 const cloudDisp = syncData.dispenseLogs || [];
                 
+                // 🛡️ 套用防護：即使雲端資料因為延遲而沒有作廢標記，只要本地有記住，就強制覆寫為作廢！
+                cloudApps.forEach(a => { if(localAppVoids[a['申請單號']]) { a['作廢'] = 'Y'; a['異動'] = '作廢'; } });
+                cloudDisp.forEach(d => { if(localDispVoids[d['調劑流水號'] || d['申請單號']]) { d['作廢'] = 'Y'; d['異動'] = '作廢'; } });
+                
                 if (force) {
-                    // 👉 最高權限：如果是「強制同步」，則無情覆蓋，徹底消滅本地幽靈快取！
                     State.applications = cloudApps;
                     State.dispenseLogs = cloudDisp;
                 } else {
-                    // 🛡️ 一般操作時：保留智慧合併機制 (Smart Merge)
                     const localOnlyApps = State.applications.filter(local => {
                         const localTime = formatAsDate(local['收單時間']) + " " + formatAsTime(local['收單時間']);
                         return !cloudApps.some(cloud => {
