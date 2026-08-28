@@ -104,14 +104,12 @@ window.renderDispenseHistory = function() {
             }
 
             const logId = log['調劑流水號'] || log['申請單號']; 
-            const actionButtons = `
-              <div class="btn-group btn-group-sm shadow-sm">
-                ${isVoid 
-                  ? `<button class="btn btn-outline-success" onclick="openActionModal('DIS', 'RESTORE', '${logId}')">還原</button>`
-                  : `<button class="btn btn-outline-danger" onclick="openActionModal('DIS', 'VOID', '${logId}')">作廢</button>`
-                }
-              </div>
-            `;
+// 👉 若已作廢，只顯示灰色的「已作廢」標籤，不提供任何按鈕
+            const actionButtons = isVoid 
+              ? `<span class="badge bg-secondary opacity-75">已作廢</span>`
+              : `<div class="btn-group btn-group-sm shadow-sm">
+                   <button class="btn btn-outline-danger" onclick="openActionModal('DIS', 'VOID', '${logId}')">作廢</button>
+                 </div>`;
 
             const rowClass = isVoid ? 'bg-light text-muted text-decoration-line-through opacity-75' : '';
 
