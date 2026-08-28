@@ -129,7 +129,6 @@ function renderAppHistory() {
       // 👉 新增異動操作按鈕列
       const actionButtons = `
         <div class="btn-group btn-group-sm shadow-sm">
-          <button class="btn btn-outline-primary" onclick="openActionModal('APP', 'EDIT', '${appId}')">修改</button>
           ${isVoid 
             ? `<button class="btn btn-outline-success" onclick="openActionModal('APP', 'RESTORE', '${appId}')">還原</button>`
             : `<button class="btn btn-outline-danger" onclick="openActionModal('APP', 'VOID', '${appId}')">作廢</button>`
