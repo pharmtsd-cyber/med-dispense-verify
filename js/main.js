@@ -358,6 +358,7 @@ window.showAppDetails = function(appId) {
 };
 
 // 👉 異動操作專用 Modal 引擎
+
 window.openActionModal = function(recordType, action, recordId) {
     const user = JSON.parse(sessionStorage.getItem("currentUser"));
     if (!user) return alert("請先登入！");
@@ -384,40 +385,31 @@ window.openActionModal = function(recordType, action, recordId) {
     document.getElementById('action-emp-id').value = user.id;
     document.getElementById('action-emp-name').value = user.name;
     
+    // 👉 動態生成單位下拉選單，並預設帶入目前畫面上選擇的單位
+    const unitSelect = document.getElementById('action-unit');
+    unitSelect.innerHTML = '<option value="" disabled>-- 請選擇單位 --</option>';
+    State.unitData.forEach(u => {
+        if(u['單位名稱']) {
+            unitSelect.innerHTML += `<option value="${u['單位名稱']}">${u['單位名稱']}</option>`;
+        }
+    });
+    
     const currentUnitEl = document.querySelector(`input[name="${recordType === 'APP' ? 'app' : 'disp'}-unit-radio"]:checked`);
-    document.getElementById('action-unit').value = currentUnitEl ? currentUnitEl.value : (user.unit || "");
+    unitSelect.value = currentUnitEl ? currentUnitEl.value : (user.unit || "");
 
     const header = document.getElementById('action-modal-header');
     const title = document.getElementById('action-modal-title');
     const btn = document.getElementById('btn-submit-action');
     const dynamicContainer = document.getElementById('action-dynamic-fields');
-    dynamicContainer.innerHTML = "";
+    dynamicContainer.innerHTML = ""; // 已經不需要動態欄位
 
-    if (action === 'EDIT') {
-        header.className = "modal-header text-white bg-primary";
-        title.innerHTML = `<i class="bi bi-pencil-square"></i> 修改資料 [${record[pkField] || recordId}]`;
-        btn.className = "btn btn-primary w-100 fw-bold shadow-sm";
-        btn.innerText = "確認修改並儲存";
-
-        // 動態生成可編輯欄位 (排除系統與異動欄位)
-        const skipFields = [pkField, '收單時間', '調劑時間', '作廢', '異動', '異動單位', '異動藥師員工編號', '異動藥師姓名', '異動時間', '異動備註'];
-        
-        Object.keys(record).forEach(key => {
-            if (!skipFields.includes(key) && typeof record[key] !== 'undefined') {
-                dynamicContainer.innerHTML += `
-                    <div class="col-md-6">
-                        <label class="form-label fw-bold small">${key}</label>
-                        <input type="text" class="form-control editable-field" data-key="${key}" value="${record[key]}">
-                    </div>
-                `;
-            }
-        });
-    } else if (action === 'VOID') {
+    // 👉 移除 EDIT，只保留 VOID 與 RESTORE
+    if (action === 'VOID') {
         header.className = "modal-header text-white bg-danger";
         title.innerHTML = `<i class="bi bi-trash"></i> 作廢資料 [${record[pkField] || recordId}]`;
         btn.className = "btn btn-danger w-100 fw-bold shadow-sm";
         btn.innerText = "確認作廢此筆紀錄";
-        dynamicContainer.innerHTML = `<div class="col-12"><div class="alert alert-warning fw-bold mb-0">⚠️ 警告：作廢後，此筆紀錄將不再列入任何額度統計與計算。</div></div>`;
+        dynamicContainer.innerHTML = `<div class="col-12"><div class="alert alert-warning fw-bold mb-0">⚠️ 警告：作廢後，此筆紀錄將不再列入任何額度統計與計算，若有錯誤請重新填寫。</div></div>`;
     } else if (action === 'RESTORE') {
         header.className = "modal-header text-white bg-success";
         title.innerHTML = `<i class="bi bi-arrow-counterclockwise"></i> 還原資料 [${record[pkField] || recordId}]`;
@@ -445,12 +437,11 @@ document.addEventListener("DOMContentLoaded", () => {
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 處理中...';
 
-            await window.smartSync(); // 寫入前強制防護同步
+            await window.smartSync(); 
 
             const now = new Date();
-            // 精準映射您的 Google Sheets 欄位
             let updatePayload = {
-                "異動": action === 'EDIT' ? '修改' : (action === 'VOID' ? '作廢' : '還原'),
+                "異動": action === 'VOID' ? '作廢' : '還原',
                 "異動單位": document.getElementById('action-unit').value,
                 "異動藥師員工編號": document.getElementById('action-emp-id').value,
                 "異動藥師姓名": document.getElementById('action-emp-name').value,
@@ -458,11 +449,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 "異動備註": document.getElementById('action-note').value.trim()
             };
 
-            if (action === 'EDIT') {
-                document.querySelectorAll('.editable-field').forEach(input => {
-                    updatePayload[input.getAttribute('data-key')] = input.value;
-                });
-            } else if (action === 'VOID') {
+            if (action === 'VOID') {
                 updatePayload['作廢'] = 'Y';
             } else if (action === 'RESTORE') {
                 updatePayload['作廢'] = 'N';
