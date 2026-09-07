@@ -351,7 +351,7 @@ function startHeartbeat() {
                 }
             });
         }
-    }, 60000); 
+    }, 180000); 
 }
 
 startHeartbeat();
