@@ -155,12 +155,11 @@ let lastSyncTimestamp = 0;
 let isSmartSyncing = false;
 let smartSyncPromise = null;
 
+// 在 main.js 中替換整段 window.smartSync 函數
 window.smartSync = async function(force = false) {
     const now = Date.now();
-    
-    if (!force && (now - lastSyncTimestamp < 15000)) {
-        return true; 
-    }
+    // 如果不是強制，且距離上次同步小於 15 秒，則略過 (防頻繁發送)
+    if (!force && (now - lastSyncTimestamp < 15000)) return true; 
     
     if (isSmartSyncing) return smartSyncPromise;
 
@@ -169,11 +168,8 @@ window.smartSync = async function(force = false) {
         try {
             const localAppVoids = {};
             State.applications.forEach(a => { if(a['作廢']==='Y' || a['異動']==='作廢') localAppVoids[a['申請單號']] = true; });
-            
             const localDispVoids = {};
-            State.dispenseLogs.forEach(d => { 
-                if(d['作廢']==='Y' || d['異動']==='作廢') localDispVoids[d['調劑流水號'] || d['申請單號']] = true; 
-            });
+            State.dispenseLogs.forEach(d => { if(d['作廢']==='Y' || d['異動']==='作廢') localDispVoids[d['調劑流水號'] || d['申請單號']] = true; });
 
             const syncData = await fetchData(`getSyncData&days=${typeof LOAD_HISTORY_DAYS !== 'undefined' ? LOAD_HISTORY_DAYS : 0}`);
             
@@ -184,35 +180,35 @@ window.smartSync = async function(force = false) {
                 cloudApps.forEach(a => { if(localAppVoids[a['申請單號']]) { a['作廢'] = 'Y'; a['異動'] = '作廢'; } });
                 cloudDisp.forEach(d => { if(localDispVoids[d['調劑流水號'] || d['申請單號']]) { d['作廢'] = 'Y'; d['異動'] = '作廢'; } });
                 
-                if (force) {
-                    State.applications = cloudApps;
-                    State.dispenseLogs = cloudDisp;
-                } else {
-                    const localOnlyApps = State.applications.filter(local => {
-                        const localTime = formatAsDate(local['收單時間']) + " " + formatAsTime(local['收單時間']);
-                        return !cloudApps.some(cloud => {
-                            const cloudTime = formatAsDate(cloud['收單時間']) + " " + formatAsTime(cloud['收單時間']);
-                            return String(cloud['病歷號']).toUpperCase() === String(local['病歷號']).toUpperCase() && 
-                                   String(cloud['藥品代碼']).toUpperCase() === String(local['藥品代碼']).toUpperCase() && 
-                                   cloudTime === localTime;
-                        });
+                // 👉 關鍵修正：保留本地剛建立且雲端尚未擁有的最新單據
+                const localOnlyApps = State.applications.filter(local => {
+                    const localTime = formatAsDate(local['收單時間']) + " " + formatAsTime(local['收單時間']);
+                    return !cloudApps.some(cloud => {
+                        const cloudTime = formatAsDate(cloud['收單時間']) + " " + formatAsTime(cloud['收單時間']);
+                        return String(cloud['病歷號']).toUpperCase() === String(local['病歷號']).toUpperCase() && 
+                               String(cloud['藥品代碼']).toUpperCase() === String(local['藥品代碼']).toUpperCase() && 
+                               cloudTime === localTime;
                     });
-                    
-                    const localOnlyDisp = State.dispenseLogs.filter(local => {
-                        const localTime = formatAsDate(local['調劑時間']) + " " + formatAsTime(local['調劑時間']);
-                        return !cloudDisp.some(cloud => {
-                            const cloudTime = formatAsDate(cloud['調劑時間']) + " " + formatAsTime(cloud['調劑時間']);
-                            return String(cloud['病歷號']).toUpperCase() === String(local['病歷號']).toUpperCase() && 
-                                   String(cloud['藥品代碼']).toUpperCase() === String(local['藥品代碼']).toUpperCase() && 
-                                   cloudTime === localTime;
-                        });
+                });
+                
+                const localOnlyDisp = State.dispenseLogs.filter(local => {
+                    const localTime = formatAsDate(local['調劑時間']) + " " + formatAsTime(local['調劑時間']);
+                    return !cloudDisp.some(cloud => {
+                        const cloudTime = formatAsDate(cloud['調劑時間']) + " " + formatAsTime(cloud['調劑時間']);
+                        return String(cloud['病歷號']).toUpperCase() === String(local['病歷號']).toUpperCase() && 
+                               String(cloud['藥品代碼']).toUpperCase() === String(local['藥品代碼']).toUpperCase() && 
+                               cloudTime === localTime;
                     });
+                });
 
-                    State.applications = [...cloudApps, ...localOnlyApps];
-                    State.dispenseLogs = [...cloudDisp, ...localOnlyDisp];
-                }
+                // 👉 關鍵修正：無論是否 force，都採用合併策略，絕不刪除剛建立的暫存資料
+                State.applications = [...cloudApps, ...localOnlyApps];
+                State.dispenseLogs = [...cloudDisp, ...localOnlyDisp];
                 
                 State.allDrugs = syncData.allDrugs || [];
+                // 👉 關鍵修正：同步後連同可用藥品一併更新，確保全域資料一致
+                State.activeDrugs = State.allDrugs.filter(d => d['啟用狀態'].toUpperCase() === 'Y' || d['啟用狀態'] === '');
+                
                 lastSyncTimestamp = Date.now();
             }
             return true;
@@ -223,7 +219,6 @@ window.smartSync = async function(force = false) {
             isSmartSyncing = false;
         }
     })();
-    
     return smartSyncPromise;
 };
 
