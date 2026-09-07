@@ -2,12 +2,11 @@
 
 async function fetchData(action) {
   try {
-    // 保留時間戳記 (Cache-Buster)，這是最安全且不會觸發 CORS 的反快取寫法
     const timestamp = new Date().getTime();
-    
-    // 👉 移除自訂 headers，單純靠網址的不同來強制抓取最新資料
-    const response = await fetch(`${GAS_API_URL}?action=${action}&t=${timestamp}`);
-    
+    const response = await fetch(`${GAS_API_URL}?action=${action}&t=${timestamp}`, {
+      method: 'GET',
+      cache: 'no-store' // 👉 關鍵：強制繞過防火牆快取
+    });
     const result = await response.json();
     if (result.status === 'success') return result.data;
     console.error(`GET ${action} 錯誤:`, result.message);
@@ -22,7 +21,8 @@ async function postData(action, dataObj) {
   try {
     const response = await fetch(GAS_API_URL, {
       method: "POST",
-      // 維持最單純的寫法，避免觸發 Google 的 Preflight CORS 檢查
+      cache: 'no-store', // 👉 關鍵：強制繞過防火牆快取
+      headers: { "Content-Type": "text/plain;charset=utf-8" }, // 👉 關鍵：避免觸發嚴格的 CORS Preflight
       body: JSON.stringify({ action: action, data: dataObj })
     });
     return await response.json();
