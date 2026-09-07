@@ -149,18 +149,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
 let isCheckingPid = false; // 👉 新增防抖鎖定標記
 
-const runPidCheck = async () => {
-  if (isCheckingPid) return; // 如果正在檢核中，攔截重複觸發
-  const pid = inputAppPid.value.trim().toUpperCase();
-  if (!pid) return; 
-
-  isCheckingPid = true;
-  try {
+  const runPidCheck = async () => {
+    if (isCheckingPid) return;
+    
+    const pid = inputAppPid.value.trim().toUpperCase();
     inputAppPid.value = pid;
     const drugCode = State.currentSelectedDrugCode;
     const drug = State.activeDrugs.find(d => String(d['藥品代碼']).toUpperCase() === drugCode);
     
-    if (pid && drugCode && drug) {
+    // 如果沒有輸入病歷號或找不到藥品，直接退出
+    if (!pid || !drugCode || !drug) return;
+
+    isCheckingPid = true;
+    
+    try {
       document.getElementById("app-type-desc").innerHTML = '<span class="spinner-border spinner-border-sm text-primary"></span> 正在確認雲端最新額度...';
       btnSubmitApp.disabled = true;
 
@@ -265,25 +267,25 @@ const runPidCheck = async () => {
             }
         });
 
-    if (isMaxedOut) {
-              if (hasUsedBreakInControlPeriod) {
-                  document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-x-circle text-danger fw-bold"></i> ⛔ 本次療程已達額度，且管制期內已使用過複陽(突破)，無法再次申請！';
-                  setTimeout(() => alert(`⛔ 阻擋：此病患本次療程已達額度，且在管制期內已經申請過一次「複陽 / 突破限制」，無法再次申請。`), 10);
-              } else {
-                  document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-exclamation-triangle text-danger fw-bold"></i> ⚠️ 本次療程之展延額度已用盡，僅能選擇「複陽 / 突破限制」建立新療程。';
-                  setTimeout(() => alert(`此病患本次療程的額度已經用盡。\n若有醫療需求，僅能選擇「🔴 複陽 / 突破限制」建立新的獨立療程。`), 10);
-              }
-          } else {
-          if (hasUsedBreakInControlPeriod) {
-              document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-info-circle text-primary fw-bold"></i> 🔍 尚有展延額度可使用 (複陽額度已用罄)。';
-          } else {
-              document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-info-circle text-primary fw-bold"></i> 🔍 已找到近期紀錄，可選擇「展延」或「複陽(突破)」。';
-          }
+        if (isMaxedOut) {
+            if (hasUsedBreakInControlPeriod) {
+                document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-x-circle text-danger fw-bold"></i> ⛔ 本次療程已達額度，且管制期內已使用過複陽(突破)，無法再次申請！';
+                setTimeout(() => alert(`⛔ 阻擋：此病患本次療程已達額度，且在管制期內已經申請過一次「複陽 / 突破限制」，無法再次申請。`), 10);
+            } else {
+                document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-exclamation-triangle text-danger fw-bold"></i> ⚠️ 本次療程之展延額度已用盡，僅能選擇「複陽 / 突破限制」建立新療程。';
+                setTimeout(() => alert(`此病患本次療程的額度已經用盡。\n若有醫療需求，僅能選擇「🔴 複陽 / 突破限制」建立新的獨立療程。`), 10);
+            }
+        } else {
+            if (hasUsedBreakInControlPeriod) {
+                document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-info-circle text-primary fw-bold"></i> 🔍 尚有展延額度可使用 (複陽額度已用罄)。';
+            } else {
+                document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-info-circle text-primary fw-bold"></i> 🔍 已找到近期紀錄，可選擇「展延」或「複陽(突破)」。';
+            }
         }
       }
-    }finally {
-    // 👉 延遲 300 毫秒才解鎖，確保 alert 關閉產生的焦點飄移不會馬上再次觸發檢核
-    setTimeout(() => { isCheckingPid = false; }, 300);
+    } finally {
+      // 👉 延遲 300 毫秒才解鎖，確保 alert 關閉產生的焦點飄移不會馬上再次觸發檢核
+      setTimeout(() => { isCheckingPid = false; }, 300);
     }
   };
 
