@@ -43,6 +43,15 @@ function openApplicationForm() {
   document.getElementById("lbl-max-days").innerText = "";
   document.getElementById("lbl-max-qty").innerText = "";
   
+  const today = new Date();
+  const startDate = new Date();
+  startDate.setDate(today.getDate() - parseInt(drug['管制天數'] || 14));
+  
+  const histStartInput = document.getElementById("app-hist-start");
+  const histEndInput = document.getElementById("app-hist-end");
+  if(histStartInput) histStartInput.value = startDate.toISOString().split('T')[0];
+  if(histEndInput) histEndInput.value = today.toISOString().split('T')[0];
+  
   let customCats = [];
   try { if (drug['自訂類別']) customCats = JSON.parse(drug['自訂類別']); } catch(e) {}
   
