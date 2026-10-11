@@ -142,7 +142,7 @@ function renderAppHistory() {
         <td class="fw-bold ${isVoid ? '' : 'text-primary'}">${appPid}</td>
         <td><span class="badge ${isVoid ? 'bg-secondary' : 'bg-info text-dark'}">${app['申請類別']}</span></td>
         <td class="fw-bold">${app['申請天數']} 天 / ${app['申請數量']} 支</td>
-        <td class="small">${app['處理單位']}</td>
+        <td class="small">${app['處理單位'] || '-'} / ${app['藥師姓名'] || '-'}</td>
         <td>${actionButtons}</td>
       </tr>`;
     }
