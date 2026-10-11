@@ -82,7 +82,7 @@ function drawMixedChart(code, prefix) {
   let labels = [];
   let curr = new Date(startStr);
   const end = new Date(endStr);
-  while(curr <= end && labels.length < 31) { 
+  while(curr <= end) { 
       labels.push(formatAsDate(curr));
       curr.setDate(curr.getDate() + 1);
   }
