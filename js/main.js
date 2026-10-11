@@ -7,7 +7,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   if(overviewTitleEl) overviewTitleEl.innerText = `(資料範圍: 近 ${daysText} 天)`;
 
   const today = new Date();
-  const priorDate = new Date(new Date().setDate(today.getDate() - 14));
+  const priorDate = new Date(new Date().setDate(today.getDate() - 21));
   const priorDate2 = new Date(new Date().setDate(today.getDate() - 2));
   
   const todayStr = today.toISOString().split('T')[0];
