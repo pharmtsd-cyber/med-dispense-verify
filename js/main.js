@@ -7,24 +7,20 @@ document.addEventListener("DOMContentLoaded", async () => {
   if(overviewTitleEl) overviewTitleEl.innerText = `(資料範圍: 近 ${daysText} 天)`;
 
   const today = new Date();
-  const priorDate = new Date(new Date().setDate(today.getDate() - 21));
-  const priorDate2 = new Date(new Date().setDate(today.getDate() - 2));
-  
   const todayStr = today.toISOString().split('T')[0];
-  const priorStr14 = priorDate.toISOString().split('T')[0];
-  const priorStr2 = priorDate2.toISOString().split('T')[0];
-  
-  const dateInputs14 = ['overview-date-start', 'overview-date-end', 'single-drug-date-start', 'single-drug-date-end', 'app-hist-start', 'app-hist-end'];
-  dateInputs14.forEach(id => {
-      const el = document.getElementById(id);
-      if(el) el.value = id.includes('start') ? priorStr14 : todayStr;
-  });
 
-  const dateInputs2 = ['disp-hist-start', 'disp-hist-end'];
-  dateInputs2.forEach(id => {
+  // 👉 總覽與單一藥品儀表板：依據 config.js 的 LOAD_HISTORY_DAYS (若無設定或設定為 0，預設往回抓 90 天作為畫面顯示)
+  const historyDays = (typeof LOAD_HISTORY_DAYS !== 'undefined' && LOAD_HISTORY_DAYS > 0) ? LOAD_HISTORY_DAYS : 90;
+  const overviewPriorDate = new Date();
+  overviewPriorDate.setDate(today.getDate() - historyDays);
+  const overviewPriorStr = overviewPriorDate.toISOString().split('T')[0];
+
+  const overviewDateInputs = ['overview-date-start', 'overview-date-end', 'single-drug-date-start', 'single-drug-date-end'];
+  overviewDateInputs.forEach(id => {
       const el = document.getElementById(id);
-      if(el) el.value = id.includes('start') ? priorStr2 : todayStr;
+      if(el) el.value = id.includes('start') ? overviewPriorStr : todayStr;
   });
+  // 註：app-hist-start 與 disp-hist-start 將在開啟對應表單時，依據該藥品的「管制天數」動態設定
 
   const userStr = sessionStorage.getItem("currentUser");
   if (userStr) {
