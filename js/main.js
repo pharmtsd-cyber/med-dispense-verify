@@ -9,11 +9,16 @@ document.addEventListener("DOMContentLoaded", async () => {
   const today = new Date();
   const todayStr = today.toISOString().split('T')[0];
 
-  // 👉 總覽與單一藥品儀表板：依據 config.js 的 LOAD_HISTORY_DAYS (若無設定或設定為 0，預設往回抓 90 天作為畫面顯示)
+  // 🔍 替換 main.js 最上面的日期設定：
+  const today = new Date();
+  const getLocalYMD = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const todayStr = getLocalYMD(today);
+
+  // 👉 總覽與單一藥品儀表板：依據 config.js 的 LOAD_HISTORY_DAYS
   const historyDays = (typeof LOAD_HISTORY_DAYS !== 'undefined' && LOAD_HISTORY_DAYS > 0) ? LOAD_HISTORY_DAYS : 90;
   const overviewPriorDate = new Date();
   overviewPriorDate.setDate(today.getDate() - historyDays);
-  const overviewPriorStr = overviewPriorDate.toISOString().split('T')[0];
+  const overviewPriorStr = getLocalYMD(overviewPriorDate);
 
   const overviewDateInputs = ['overview-date-start', 'overview-date-end', 'single-drug-date-start', 'single-drug-date-end'];
   overviewDateInputs.forEach(id => {
