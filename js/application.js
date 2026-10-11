@@ -47,10 +47,12 @@ function openApplicationForm() {
   const startDate = new Date();
   startDate.setDate(today.getDate() - parseInt(drug['管制天數'] || 14));
   
+  const getLocalYMD = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
   const histStartInput = document.getElementById("app-hist-start");
   const histEndInput = document.getElementById("app-hist-end");
-  if(histStartInput) histStartInput.value = startDate.toISOString().split('T')[0];
-  if(histEndInput) histEndInput.value = today.toISOString().split('T')[0];
+  if(histStartInput) histStartInput.value = getLocalYMD(startDate);
+  if(histEndInput) histEndInput.value = getLocalYMD(today);
   
   let customCats = [];
   try { if (drug['自訂類別']) customCats = JSON.parse(drug['自訂類別']); } catch(e) {}
@@ -346,11 +348,13 @@ let isCheckingPid = false; // 👉 新增防抖鎖定標記
           
           document.getElementById("app-start-date").readOnly = false;
           
+// 🔍 替換 application.js 中設定 app-start-date 的部分：
+          const getLocalYMD = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
           const today = new Date();
           if (catType === "BREAK" && window.currentAbsoluteMaxEndDate > today) {
-              document.getElementById("app-start-date").value = window.currentAbsoluteMaxEndDate.toISOString().split('T')[0];
+              document.getElementById("app-start-date").value = getLocalYMD(window.currentAbsoluteMaxEndDate);
           } else {
-              document.getElementById("app-start-date").value = today.toISOString().split('T')[0];
+              document.getElementById("app-start-date").value = getLocalYMD(today);
           }
       }
     }
