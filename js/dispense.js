@@ -121,6 +121,7 @@ window.renderDispenseHistory = function() {
                 <td class="fw-bold ${isVoid ? '' : (isDispense ? 'text-success' : 'text-danger')}">${displayQty > 0 ? '+' : ''}${displayQty}</td>
                 <td class="small text-muted">${noHtml}</td>
                 <td>${basisHtml}</td>
+                <td class="small">${log['處理單位'] || '-'} / ${log['藥師姓名'] || '-'}</td>
                 <td>${actionButtons}</td>
             </tr>`;
         }
