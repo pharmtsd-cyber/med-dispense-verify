@@ -155,7 +155,6 @@ let lastSyncTimestamp = 0;
 let isSmartSyncing = false;
 let smartSyncPromise = null;
 
-// 在 main.js 中替換整段 window.smartSync 函數
 window.smartSync = async function(force = false) {
     const now = Date.now();
     // 如果不是強制，且距離上次同步小於 15 秒，則略過 (防頻繁發送)
@@ -180,26 +179,12 @@ window.smartSync = async function(force = false) {
                 cloudApps.forEach(a => { if(localAppVoids[a['申請單號']]) { a['作廢'] = 'Y'; a['異動'] = '作廢'; } });
                 cloudDisp.forEach(d => { if(localDispVoids[d['調劑流水號'] || d['申請單號']]) { d['作廢'] = 'Y'; d['異動'] = '作廢'; } });
                 
-                // 👉 關鍵修正：保留本地剛建立且雲端尚未擁有的最新單據
-                const localOnlyApps = State.applications.filter(local => {
-                    const localTime = formatAsDate(local['收單時間']) + " " + formatAsTime(local['收單時間']);
-                    return !cloudApps.some(cloud => {
-                        const cloudTime = formatAsDate(cloud['收單時間']) + " " + formatAsTime(cloud['收單時間']);
-                        return String(cloud['病歷號']).toUpperCase() === String(local['病歷號']).toUpperCase() && 
-                               String(cloud['藥品代碼']).toUpperCase() === String(local['藥品代碼']).toUpperCase() && 
-                               cloudTime === localTime;
-                    });
-                });
-                
-                const localOnlyDisp = State.dispenseLogs.filter(local => {
-                    const localTime = formatAsDate(local['調劑時間']) + " " + formatAsTime(local['調劑時間']);
-                    return !cloudDisp.some(cloud => {
-                        const cloudTime = formatAsDate(cloud['調劑時間']) + " " + formatAsTime(cloud['調劑時間']);
-                        return String(cloud['病歷號']).toUpperCase() === String(local['病歷號']).toUpperCase() && 
-                               String(cloud['藥品代碼']).toUpperCase() === String(local['藥品代碼']).toUpperCase() && 
-                               cloudTime === localTime;
-                    });
-                });
+                // 👉 關鍵修正 3：改用「唯一單號 (ID)」進行 Set 比對，避免時間差造成的重複推入
+                const cloudAppIds = new Set(cloudApps.map(a => a['申請單號']));
+                const cloudDispIds = new Set(cloudDisp.map(d => d['調劑流水號'] || d['申請單號']));
+
+                const localOnlyApps = State.applications.filter(local => !cloudAppIds.has(local['申請單號']));
+                const localOnlyDisp = State.dispenseLogs.filter(local => !cloudDispIds.has(local['調劑流水號'] || local['申請單號']));
 
                 // 👉 關鍵修正：無論是否 force，都採用合併策略，絕不刪除剛建立的暫存資料
                 State.applications = [...cloudApps, ...localOnlyApps];
