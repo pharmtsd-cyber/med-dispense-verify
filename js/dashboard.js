@@ -175,6 +175,78 @@ function refreshSingleDrugDashboard() {
   
   const statsContainer = document.getElementById("drug-dashboard-stats");
   document.getElementById("overview-drug-filter").value = code;
+  
+  // 👉 1. 計算區間內所有申請單的「剩餘用量」
+  let trackingList = [];
+  State.applications.forEach(app => {
+      if (String(app['藥品代碼']).toUpperCase() === code && app['作廢'] !== 'Y' && app['異動'] !== '作廢') {
+          const actDateStr = formatAsDate(app['啟用日期']) || formatAsDate(app['收單時間']);
+          
+          // 若有設定日期區間，則只追蹤區間內的申請單
+          if (startDate && actDateStr < startDate) return;
+          if (endDate && actDateStr > endDate) return;
+
+          const basisId = app['申請單號'] || app['收單時間'];
+          let usedQty = 0;
+
+          // 計算此張申請單已被調劑扣除的數量
+          State.dispenseLogs.forEach(log => {
+              if (String(log['藥品代碼']).toUpperCase() === code && log['作廢'] !== 'Y' && log['異動'] !== '作廢' && log['申請單號'] === basisId) {
+                  usedQty += parseInt(log['調劑數量'] || 0);
+                  usedQty -= parseInt(log['退藥數量'] || 0);
+              }
+          });
+
+          const maxQty = parseInt(app['申請數量'] || 0);
+          const rem = maxQty - usedQty;
+
+          // 若還有剩，就加入追蹤清單
+          if (rem > 0) {
+              trackingList.push({
+                  pid: String(app['病歷號']).toUpperCase(),
+                  actDate: actDateStr,
+                  maxQty: maxQty,
+                  remQty: rem,
+                  basisId: basisId
+              });
+          }
+      }
+  });
+
+  // 👉 2. 組合追蹤卡片的 HTML
+  let trackingHtml = `
+    <div class="card shadow-sm border-warning mb-4">
+      <div class="card-header bg-warning bg-opacity-25 border-warning fw-bold text-dark d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-person-lines-fill"></i> 剩餘額度追蹤清單 (依上方日期區間)</span>
+        <span class="badge bg-danger fs-6 shadow-sm">共 ${trackingList.length} 筆未領完</span>
+      </div>
+      <div class="card-body p-0" style="max-height: 250px; overflow-y: auto;">
+        <table class="table table-hover align-middle text-center mb-0">
+          <thead class="table-light small" style="position: sticky; top: 0; z-index: 1;">
+            <tr><th>病歷號</th><th>初次申請(啟用)日</th><th>申請數量</th><th>剩餘數量</th><th>申請單號</th></tr>
+          </thead>
+          <tbody>
+  `;
+
+  if (trackingList.length > 0) {
+      // 依日期排序 (舊到新)
+      trackingList.sort((a,b) => new Date(a.actDate) - new Date(b.actDate));
+      trackingList.forEach(t => {
+          trackingHtml += `
+            <tr>
+              <td class="fw-bold text-primary">${t.pid}</td>
+              <td>${t.actDate}</td>
+              <td>${t.maxQty} 支</td>
+              <td class="fw-bold text-danger">${t.remQty} 支</td>
+              <td class="small font-monospace text-muted">${t.basisId.substring(0, 12)}</td>
+            </tr>
+          `;
+      });
+  } else {
+      trackingHtml += `<tr><td colspan="5" class="text-muted py-3">此區間內無尚未領完的申請紀錄</td></tr>`;
+  }
+  trackingHtml += `</tbody></table></div></div>`;
+
   renderOverview(); 
   
   setTimeout(() => {
@@ -183,7 +255,9 @@ function refreshSingleDrugDashboard() {
        let newHtml = cardContent.innerHTML
            .replace(`id="chart-overview-${code}"`, `id="chart-single-${code}"`)
            .replace(`id="chart-overview-line-${code}"`, `id="chart-single-line-${code}"`);
-       statsContainer.innerHTML = newHtml;
+           
+       // 👉 3. 把「追蹤卡片 HTML」接在「圖表 HTML」的上方，一起塞進容器
+       statsContainer.innerHTML = trackingHtml + newHtml;
        drawMixedChart(code, 'single');
     }
     document.getElementById("overview-drug-filter").value = "ALL";
