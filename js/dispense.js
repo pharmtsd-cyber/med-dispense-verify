@@ -166,7 +166,8 @@ if(barcodeInput) {
             isProcessingDispense = true;
             barcodeInput.disabled = true;
             
-            await executeDispenseFlow(pid, qty, type, no, retNo, note, "條碼");
+            await executeDispenseFlow(pid, qty, type, no, retNo, note, "條碼", str);
+            const success = await executeDispenseFlow(pid, qty, type, no || "", retNo, note, "手動", "");
             
             isProcessingDispense = false;
             barcodeInput.disabled = false;
@@ -340,6 +341,7 @@ async function executeDispenseFlow(pid, qty, type, no, retNo, note, inputMethod)
             "調劑類別": type,
             "選擇調劑或退藥": type === '調劑' ? '調劑發藥' : '退藥作業',
             "手動或條碼": inputMethod,
+            "掃描條碼": rawBarcode,
             "調劑數量": type === '調劑' ? Math.abs(splitQty) : 0, 
             "退藥數量": type === '退藥' ? Math.abs(splitQty) : 0,
             "數量": splitSignedQty,
