@@ -51,7 +51,8 @@ function renderOverview() {
               <div class="text-muted small">退回數量</div><h3 class="text-danger mt-1">${totalReturned} 支</h3>
             </div>
           </div>
-          <div style="height: 350px; width: 100%;"><canvas id="chart-overview-${code}" data-chart-code="${code}"></canvas></div>
+          <div style="height: 200px; width: 100%; margin-bottom: 20px;"><canvas id="chart-overview-line-${code}" data-chart-code="${code}"></canvas></div>
+          <div style="height: 300px; width: 100%;"><canvas id="chart-overview-${code}" data-chart-code="${code}"></canvas></div>
         </div>
       </div>
     `;
@@ -65,10 +66,15 @@ function renderOverview() {
 
 function drawMixedChart(code, prefix) {
   const canvasId = `chart-${prefix}-${code}`;
+  const canvasLineId = `chart-${prefix}-line-${code}`; // 👉 新增的人數圖表 ID
+  
   const ctx = document.getElementById(canvasId);
+  const ctxLine = document.getElementById(canvasLineId); 
   if(!ctx) return;
 
+  // 清除舊圖表
   if (State.chartInstances[canvasId]) { State.chartInstances[canvasId].destroy(); }
+  if (State.chartInstances[canvasLineId]) { State.chartInstances[canvasLineId].destroy(); }
 
   const startStr = document.getElementById(`${prefix === 'overview' ? 'overview' : 'single-drug'}-date-start`).value.replace(/-/g, '/');
   const endStr = document.getElementById(`${prefix === 'overview' ? 'overview' : 'single-drug'}-date-end`).value.replace(/-/g, '/');
@@ -88,7 +94,6 @@ function drawMixedChart(code, prefix) {
       let patSet = new Set();
 
       State.applications.forEach(app => {
-          // 👉 雙重作廢檢查
           if(String(app['藥品代碼']).toUpperCase() === code && app['作廢'] !== 'Y' && app['異動'] !== '作廢' && formatAsDate(app['收單時間']) === dateLabel) {
               dApp += parseInt(app['申請數量'] || 0);
               patSet.add(app['病歷號']);
@@ -96,7 +101,6 @@ function drawMixedChart(code, prefix) {
       });
 
       State.dispenseLogs.forEach(log => {
-          // 👉 雙重作廢檢查
           if(String(log['藥品代碼']).toUpperCase() === code && log['作廢'] !== 'Y' && log['異動'] !== '作廢' && formatAsDate(log['調劑時間']) === dateLabel) {
               dDisp += parseInt(log['調劑數量'] || 0);
               dRet += parseInt(log['退藥數量'] || 0);
@@ -111,24 +115,43 @@ function drawMixedChart(code, prefix) {
       dataPat.push(patSet.size); 
   });
 
+  // 👉 第一張圖：畫人數折線圖
+  if (ctxLine) {
+      State.chartInstances[canvasLineId] = new Chart(ctxLine, {
+        type: 'line', 
+        data: {
+          labels: labels,
+          datasets: [
+            { type: 'line', label: '每日人數 (人)', data: dataPat, borderColor: '#fd7e14', backgroundColor: 'rgba(253, 126, 20, 0.2)', borderWidth: 2, tension: 0.3, fill: true }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { position: 'top' }, tooltip: { mode: 'index', intersect: false } },
+          scales: {
+            y: { type: 'linear', position: 'left', title: { display: true, text: '人數' }, beginAtZero: true, ticks: { stepSize: 1, precision: 0 } }
+          }
+        }
+      });
+  }
+
+  // 👉 第二張圖：畫數量直條圖
   State.chartInstances[canvasId] = new Chart(ctx, {
     type: 'bar', 
     data: {
       labels: labels,
       datasets: [
-        { type: 'line', label: '每日人數 (人)', data: dataPat, borderColor: '#fd7e14', backgroundColor: '#fd7e14', borderWidth: 2, tension: 0.3, yAxisID: 'y1', order: 1 },
-        { type: 'line', label: '實際用量 (支)', data: dataActual, borderColor: '#6f42c1', backgroundColor: '#6f42c1', borderWidth: 2, tension: 0.3, yAxisID: 'y', order: 1 },
-        { type: 'bar', label: '申請量', data: dataApp, backgroundColor: 'rgba(13, 202, 240, 0.7)', yAxisID: 'y', order: 2 },
-        { type: 'bar', label: '調劑量', data: dataDisp, backgroundColor: 'rgba(25, 135, 84, 0.7)', yAxisID: 'y', order: 2 },
-        { type: 'bar', label: '退藥量', data: dataRet, backgroundColor: 'rgba(220, 53, 69, 0.7)', yAxisID: 'y', order: 2 }
+        { type: 'line', label: '實際用量 (支)', data: dataActual, borderColor: '#6f42c1', backgroundColor: '#6f42c1', borderWidth: 2, tension: 0.3, order: 1 },
+        { type: 'bar', label: '申請量', data: dataApp, backgroundColor: 'rgba(13, 202, 240, 0.7)', order: 2 },
+        { type: 'bar', label: '調劑量', data: dataDisp, backgroundColor: 'rgba(25, 135, 84, 0.7)', order: 2 },
+        { type: 'bar', label: '退藥量', data: dataRet, backgroundColor: 'rgba(220, 53, 69, 0.7)', order: 2 }
       ]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: { legend: { position: 'top' }, tooltip: { mode: 'index', intersect: false } },
       scales: {
-        y: { type: 'linear', position: 'left', title: { display: true, text: '數量 (支)' } },
-        y1: { type: 'linear', position: 'right', title: { display: true, text: '人數' }, grid: { drawOnChartArea: false }, ticks: { stepSize: 1, precision: 0 } }
+        y: { type: 'linear', position: 'left', title: { display: true, text: '數量 (支)' }, beginAtZero: true }
       }
     }
   });
@@ -157,7 +180,9 @@ function refreshSingleDrugDashboard() {
   setTimeout(() => {
     const cardContent = document.getElementById(`overview-card-${code}`);
     if(cardContent && statsContainer) {
-       let newHtml = cardContent.innerHTML.replace(`id="chart-overview-${code}"`, `id="chart-single-${code}"`);
+       let newHtml = cardContent.innerHTML
+           .replace(`id="chart-overview-${code}"`, `id="chart-single-${code}"`)
+           .replace(`id="chart-overview-line-${code}"`, `id="chart-single-line-${code}"`);
        statsContainer.innerHTML = newHtml;
        drawMixedChart(code, 'single');
     }
