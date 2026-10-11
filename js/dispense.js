@@ -458,7 +458,23 @@ function performDispenseCalculation(pid, qty, type, originalNo) {
         return { success: true, deductionPlan: returnPlan, totalAvailableRemaining: totalDispensed };
     }
 
-    let validApps = allPatientApps;
+    const controlDays = parseInt(drug['管制天數'] || 14);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let validApps = allPatientApps.filter(app => {
+        // 抓取申請單的啟用日期 (若無則抓收單時間)
+        const actDateStr = formatAsDate(app['啟用日期']) || formatAsDate(app['收單時間']);
+        const actDate = new Date(actDateStr);
+        actDate.setHours(0, 0, 0, 0);
+
+        // 計算該申請單的「最後可調劑日」：啟用日期 + 管制天數
+        const expireDate = new Date(actDate);
+        expireDate.setDate(expireDate.getDate() + controlDays);
+
+        // 判斷條件：今天的日期必須 >= 啟用日期，且 <= 最後可調劑日
+        return today >= actDate && today <= expireDate;
+    });
 
     validApps.sort((a,b) => {
         const dateA = new Date(formatAsDate(a['啟用日期'] || a['收單時間']));
