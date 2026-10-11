@@ -486,11 +486,11 @@ function performDispenseCalculation(pid, qty, type, originalNo) {
     validApps.sort((a,b) => {
         const dateA = new Date(formatAsDate(a['啟用日期'] || a['收單時間']));
         const dateB = new Date(formatAsDate(b['啟用日期'] || b['收單時間']));
-        if (dateA.getTime() !== dateB.getTime()) return dateA - dateB; 
+        if (dateA.getTime() !== dateB.getTime()) return dateB - dateA; // 新日期優先
         
         const timeA = new Date(formatAsDate(a['收單時間'])+' '+(formatAsTime(a['收單時間'])||'00:00:00'));
         const timeB = new Date(formatAsDate(b['收單時間'])+' '+(formatAsTime(b['收單時間'])||'00:00:00'));
-        return timeA - timeB; 
+        return timeB - timeA; // 新時間優先
     });
 
     let totalRem = 0;
