@@ -167,7 +167,6 @@ if(barcodeInput) {
             barcodeInput.disabled = true;
             
             await executeDispenseFlow(pid, qty, type, no, retNo, note, "條碼", str);
-            const success = await executeDispenseFlow(pid, qty, type, no || "", retNo, note, "手動", "");
             
             isProcessingDispense = false;
             barcodeInput.disabled = false;
@@ -269,7 +268,7 @@ document.addEventListener("DOMContentLoaded", () => {
             
             document.getElementById("disp-check-result").classList.add("d-none-important");
             
-            const success = await executeDispenseFlow(pid, qty, type, no || "", retNo, note, "手動");
+            const success = await executeDispenseFlow(pid, qty, type, no || "", retNo, note, "手動", "");
             
             isProcessingDispense = false;
             submitBtn.disabled = false;
