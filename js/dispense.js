@@ -295,7 +295,8 @@ function showDispenseResult(status, htmlMsg) {
     }
 }
 
-async function executeDispenseFlow(pid, qty, type, no, retNo, note, inputMethod) {
+// 👉 注意：參數列最後面多加了 rawBarcode = ""
+async function executeDispenseFlow(pid, qty, type, no, retNo, note, inputMethod, rawBarcode = "") {
     let checkResult = performDispenseCalculation(pid, qty, type, no);
     
     if (!checkResult.success && type === '調劑') {
@@ -321,6 +322,11 @@ async function executeDispenseFlow(pid, qty, type, no, retNo, note, inputMethod)
     const ss = String(now.getSeconds()).padStart(2, '0');
 
     const user = JSON.parse(sessionStorage.getItem("currentUser"));
+    
+    // 👉 關鍵修改 1：優先抓取畫面上表單的藥師編號與姓名，若抓不到才用登入者資訊
+    const pharmacistId = document.getElementById("disp-pharmacist-id") ? document.getElementById("disp-pharmacist-id").value : user.id;
+    const pharmacistName = document.getElementById("disp-pharmacist-name") ? document.getElementById("disp-pharmacist-name").value : user.name;
+    
     const unitEl = document.querySelector('input[name="disp-unit-radio"]:checked');
     const selectedUnit = unitEl ? unitEl.value : (user.unit || "");
     
@@ -341,7 +347,7 @@ async function executeDispenseFlow(pid, qty, type, no, retNo, note, inputMethod)
             "調劑類別": type,
             "選擇調劑或退藥": type === '調劑' ? '調劑發藥' : '退藥作業',
             "手動或條碼": inputMethod,
-            "掃描條碼": rawBarcode,
+            "掃描條碼": rawBarcode,  // 👉 關鍵修改 2：將接收到的條碼寫入 payload
             "調劑數量": type === '調劑' ? Math.abs(splitQty) : 0, 
             "退藥數量": type === '退藥' ? Math.abs(splitQty) : 0,
             "數量": splitSignedQty,
@@ -350,8 +356,8 @@ async function executeDispenseFlow(pid, qty, type, no, retNo, note, inputMethod)
             "退藥號": retNo,      
             "調劑日期": formatAsDate(now),
             "調劑時間": formatAsDate(now) + " " + formatAsTime(now),
-            "藥師員工編號": user.id,
-            "藥師姓名": user.name,
+            "藥師員工編號": pharmacistId, // 👉 寫入畫面上選擇的藥師 ID
+            "藥師姓名": pharmacistName,   // 👉 寫入畫面上選擇的藥師姓名
             "處理單位": selectedUnit, 
             "調劑退藥理由": note    
         };
