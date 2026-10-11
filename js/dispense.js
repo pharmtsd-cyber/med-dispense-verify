@@ -24,10 +24,12 @@ window.openDispenseForm = function() {
     const startDate = new Date();
     startDate.setDate(today.getDate() - controlDays);
     
+    const getLocalYMD = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    
     const histStartInput = document.getElementById("disp-hist-start");
     const histEndInput = document.getElementById("disp-hist-end");
-    if(histStartInput) histStartInput.value = startDate.toISOString().split('T')[0];
-    if(histEndInput) histEndInput.value = today.toISOString().split('T')[0];
+    if(histStartInput) histStartInput.value = getLocalYMD(startDate);
+    if(histEndInput) histEndInput.value = getLocalYMD(today);
     
     const histPidInput = document.getElementById("disp-hist-pid");
     if(histPidInput) histPidInput.value = "";
