@@ -374,6 +374,10 @@ async function executeDispenseFlow(pid, qty, type, no, retNo, note, inputMethod,
     }
 
     document.getElementById("disp-hist-pid").value = pid;
+    const dispStart = document.getElementById("disp-hist-start");
+    const dispEnd = document.getElementById("disp-hist-end");
+    if(dispStart) dispStart.value = "";
+    if(dispEnd) dispEnd.value = "";
     renderDispenseHistory();
 
     const uniqueBasisIds = [...new Set(basisIdsUsed)].join(', ');
