@@ -451,18 +451,7 @@ function performDispenseCalculation(pid, qty, type, originalNo) {
         return { success: true, deductionPlan: returnPlan, totalAvailableRemaining: totalDispensed };
     }
 
-    const controlDays = parseInt(drug['管制天數'] || 14);
-    const today = new Date();
-    today.setHours(0,0,0,0);
-    const cutoffDate = new Date(today);
-    cutoffDate.setDate(cutoffDate.getDate() - controlDays);
-    
-    let validApps = allPatientApps.filter(app => {
-        const actDateStr = formatAsDate(app['啟用日期']) || formatAsDate(app['收單時間']);
-        const actDate = new Date(actDateStr);
-        actDate.setHours(0,0,0,0);
-        return actDate >= cutoffDate && actDate <= today; 
-    });
+    let validApps = allPatientApps;
 
     validApps.sort((a,b) => {
         const dateA = new Date(formatAsDate(a['啟用日期'] || a['收單時間']));
