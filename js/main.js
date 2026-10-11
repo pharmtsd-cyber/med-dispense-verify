@@ -6,10 +6,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   if(displayEl) displayEl.innerHTML = `<i class="bi bi-database-check"></i> 快取範圍: 近 ${daysText} 天`;
   if(overviewTitleEl) overviewTitleEl.innerText = `(資料範圍: 近 ${daysText} 天)`;
 
-  const today = new Date();
-  const todayStr = today.toISOString().split('T')[0];
-
-  // 🔍 替換 main.js 最上面的日期設定：
+  // 👉 這裡只宣告一次 today 與 getLocalYMD
   const today = new Date();
   const getLocalYMD = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const todayStr = getLocalYMD(today);
