@@ -180,10 +180,26 @@
 
       <div id="view-dispense" class="view-section d-none-important">
         <div class="row g-4">
-          <div class="col-lg-5 col-xl-5">
+          <div class="col-lg-5 col-xl-5" style="max-height: calc(100vh - 100px); overflow-y: auto; padding-right: 5px;">
             <button class="btn btn-sm btn-secondary mb-3" onclick="switchView('drug-dashboard')"><i class="bi bi-arrow-left"></i> 返回 <span id="disp-back-drug-name"></span></button>
-            <h3 class="mb-4 text-success fw-bold">💊 調劑剩餘量檢核 (<span id="disp-form-drug-name" class="text-danger"></span>)</h3>
+            <h3 class="mb-3 text-success fw-bold">💊 調劑剩餘量檢核 (<span id="disp-form-drug-name" class="text-danger"></span>)</h3>
             
+            <!-- 🌟 優化 1：將檢核結果移到最上面，保證絕不會被螢幕底部切掉 -->
+            <div id="disp-check-result" class="alert alert-info mb-3 shadow-sm d-none-important"></div>
+
+            <!-- 🌟 優化 2：將刷條碼區塊往上提，緊貼檢核結果 -->
+            <div class="card shadow-sm mb-3 border-success" id="disp-scan-card" style="position: sticky; top: 0; z-index: 5;">
+              <div class="card-body bg-success bg-opacity-10" id="disp-scan-body">
+                <h5 class="text-success fw-bold mb-3" id="disp-scan-title"><i class="bi bi-upc-scan"></i> 條碼掃描區 (調劑模式 - 即時寫入)</h5>
+                <div class="row g-2">
+                  <div class="col-12">
+                    <input type="text" id="barcode-input" class="form-control border-success form-control-lg text-uppercase fw-bold text-center shadow-sm" placeholder="確認設定無誤後，請刷入藥袋條碼..." autofocus>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 🌟 優化 3：將比較少頻繁更改的藥師/單位/備註表單移到下方 -->
             <div class="card shadow-sm mb-3 border-0">
               <div class="card-body bg-light pb-2">
                 <div class="row g-2">
@@ -206,7 +222,7 @@
                         <input type="radio" class="btn-check" name="disp-type" id="disp-type-ret" value="退藥" autocomplete="off">
                         <label class="btn btn-outline-danger fw-bold" for="disp-type-ret">退藥作業</label>
                       </div>
-                      <button class="btn btn-secondary shadow-sm" type="button" style="flex: 1;" onclick="manualDispenseModal()"><i class="bi bi-keyboard"></i> 無條碼手動</button>
+                      <button class="btn btn-secondary shadow-sm" type="button" style="flex: 1;" onclick="manualDispenseModal()"><i class="bi bi-keyboard"></i> 手動無條碼</button>
                     </div>
                   </div>
 
@@ -218,18 +234,6 @@
               </div>
             </div>
 
-            <div class="card shadow-sm mb-3 border-success" id="disp-scan-card">
-              <div class="card-body bg-success bg-opacity-10" id="disp-scan-body">
-                <h5 class="text-success fw-bold mb-3" id="disp-scan-title"><i class="bi bi-upc-scan"></i> 條碼掃描區 (調劑模式 - 即時寫入)</h5>
-                <div class="row g-2">
-                  <div class="col-12">
-                    <input type="text" id="barcode-input" class="form-control border-success form-control-lg text-uppercase fw-bold text-center shadow-sm" placeholder="確認設定無誤後，請刷入藥袋條碼..." autofocus>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <div id="disp-check-result" class="alert alert-info mt-2 mb-3 d-none-important"></div>
           </div>
           
           <div class="col-lg-7 col-xl-7">
