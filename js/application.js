@@ -289,6 +289,11 @@ let isCheckingPid = false; // 👉 新增防抖鎖定標記
         if (isMaxedOut) {
             if (hasUsedBreakInControlPeriod) {
                 document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-x-circle text-danger fw-bold"></i> ⛔ 本次療程已達額度，且管制期內已使用過複陽(突破)，無法再次申請！';
+                
+                // 👉 若完全阻擋，直接把隱藏區域再次收起來，不讓使用者操作
+                const hiddenFields = document.getElementById("app-hidden-fields");
+                if(hiddenFields) hiddenFields.classList.add("d-none-important");
+                
                 setTimeout(() => alert(`⛔ 阻擋：此病患本次療程已達額度，且在管制期內已經申請過一次「複陽 / 突破限制」，無法再次申請。`), 10);
             } else {
                 document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-exclamation-triangle text-danger fw-bold"></i> ⚠️ 本次療程之展延額度已用盡，僅能選擇「複陽 / 突破限制」建立新療程。';
@@ -308,12 +313,22 @@ let isCheckingPid = false; // 👉 新增防抖鎖定標記
     }
   };
 
-  inputAppPid.addEventListener("blur", runPidCheck);
+// 👉 1. 只保留 Enter 鍵觸發檢核
   inputAppPid.addEventListener("keypress", (e) => {
     if (e.key === "Enter") {
       e.preventDefault(); 
       runPidCheck();
     }
+  });
+
+  // 👉 2. 只要病歷號有被修改（打字或刪除），立刻把下半部隱藏鎖定，強迫必須重新按 Enter 檢核
+  inputAppPid.addEventListener("input", () => {
+    const hiddenFields = document.getElementById("app-hidden-fields");
+    if(hiddenFields) hiddenFields.classList.add("d-none-important");
+    
+    document.querySelectorAll('input[name="app-type"]').forEach(r => { r.disabled = true; r.checked = false; });
+    document.getElementById("btn-submit-app").disabled = true;
+    document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-info-circle text-muted"></i> 請先輸入病歷號並按 Enter 檢核';
   });
 
   document.getElementById("app-type-group").addEventListener("change", (e) => {
