@@ -127,24 +127,37 @@
                 </div>
 
                 <div class="row g-3">
-                  <div class="col-md-6"><label class="form-label fw-bold">病歷號</label><input type="text" id="app-patient-id" class="form-control text-uppercase" required autofocus placeholder="輸入後自動檢核"></div>
-                  <div class="col-md-6"><label class="form-label fw-bold">啟用日期</label><input type="date" id="app-start-date" class="form-control border-primary" required></div>
-                  
-                  <div class="col-12">
-                    <label class="form-label fw-bold mb-1 d-block">申請類別 <span class="text-muted small">(點選查看說明)</span></label>
-                    <div class="btn-group w-100 shadow-sm flex-wrap" role="group" id="app-type-group"></div>
-                    <div id="app-type-desc" class="form-text text-primary fw-bold mt-2" style="font-size: 0.95rem;"></div>
-                  </div>
-                  
-                  <div class="col-md-6"><label class="form-label fw-bold">申請天數 <span class="text-danger small" id="lbl-max-days"></span></label><input type="number" id="app-days" class="form-control" required min="1"></div>
-                  <div class="col-md-6"><label class="form-label fw-bold">申請數量 <span class="text-danger small" id="lbl-max-qty"></span></label><input type="number" id="app-qty" class="form-control" required min="1"></div>
-                  <div class="col-12" id="manager-input-group" style="display:none;">
-                    <label class="form-label text-danger fw-bold">主管核准人 (需簽核)</label>
-                    <select id="app-manager" class="form-select border-danger"><option value="">-- 請選擇簽核主管 --</option></select>
-                  </div>
-                  <div class="col-12"><label class="form-label fw-bold">備註</label><input type="text" id="app-note" class="form-control"></div>
+                  <!-- 病歷號獨自佔據一行 -->
+                  <div class="col-12"><label class="form-label fw-bold">病歷號 <span class="text-muted small">(輸入完按 Enter 檢核)</span></label><input type="text" id="app-patient-id" class="form-control text-uppercase border-primary" required autofocus placeholder="請輸入病歷號..."></div>
                 </div>
-                <button type="submit" id="btn-submit-app" class="btn btn-primary mt-4 w-100 fw-bold shadow-sm" disabled>確認送出申請</button>
+                
+                <!-- 👇 隱藏區塊：在輸入病歷號檢核後才會顯示 👇 -->
+                <div id="app-hidden-fields" class="d-none-important mt-3">
+                  <div class="row g-3">
+                    <!-- 1. 申請類別 -->
+                    <div class="col-12">
+                      <label class="form-label fw-bold mb-1 d-block">申請類別 <span class="text-muted small">(點選查看說明)</span></label>
+                      <div class="btn-group w-100 shadow-sm flex-wrap" role="group" id="app-type-group"></div>
+                      <div id="app-type-desc" class="form-text text-primary fw-bold mt-2" style="font-size: 0.95rem;"></div>
+                    </div>
+                    
+                    <!-- 2. 啟用日期 -->
+                    <div class="col-12"><label class="form-label fw-bold">啟用日期</label><input type="date" id="app-start-date" class="form-control border-primary" required></div>
+                    
+                    <!-- 3. 申請天數與數量 -->
+                    <div class="col-md-6"><label class="form-label fw-bold">申請天數 <span class="text-danger small" id="lbl-max-days"></span></label><input type="number" id="app-days" class="form-control" required min="1"></div>
+                    <div class="col-md-6"><label class="form-label fw-bold">申請數量 <span class="text-danger small" id="lbl-max-qty"></span></label><input type="number" id="app-qty" class="form-control" required min="1"></div>
+                    
+                    <div class="col-12" id="manager-input-group" style="display:none;">
+                      <label class="form-label text-danger fw-bold">主管核准人 (需簽核)</label>
+                      <select id="app-manager" class="form-select border-danger"><option value="">-- 請選擇簽核主管 --</option></select>
+                    </div>
+                    
+                    <!-- 4. 備註 -->
+                    <div class="col-12"><label class="form-label fw-bold">備註</label><input type="text" id="app-note" class="form-control"></div>
+                  </div>
+                  <button type="submit" id="btn-submit-app" class="btn btn-primary mt-4 w-100 fw-bold shadow-sm" disabled>確認送出申請</button>
+                </div>
               </form>
             </div>
           </div>
