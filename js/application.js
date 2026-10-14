@@ -26,6 +26,10 @@ function openApplicationForm() {
 
   const form = document.getElementById("app-form");
   if(form) form.reset();
+
+// 👉 每次開啟表單時，先將下半部區塊隱藏
+  const hiddenFields = document.getElementById("app-hidden-fields");
+  if(hiddenFields) hiddenFields.classList.add("d-none-important");
   
   document.getElementById("app-pharmacist-id").value = user.id;
   document.getElementById("app-pharmacist-name").value = user.name;
@@ -174,6 +178,10 @@ let isCheckingPid = false; // 👉 新增防抖鎖定標記
     isCheckingPid = true;
     
     try {
+      // 👉 開始檢核病歷號，顯示下半部區塊，讓使用者看到 Loading 動畫
+      const hiddenFields = document.getElementById("app-hidden-fields");
+      if(hiddenFields) hiddenFields.classList.remove("d-none-important");
+      
       document.getElementById("app-type-desc").innerHTML = '<span class="spinner-border spinner-border-sm text-primary"></span> 正在確認雲端最新額度...';
       btnSubmitApp.disabled = true;
 
@@ -429,6 +437,11 @@ let isCheckingPid = false; // 👉 新增防抖鎖定標記
       renderAppHistory(); 
       
       document.getElementById("app-form").reset();
+
+// 👉 送出成功清空後，把下半部再次隱藏
+      const hiddenFields = document.getElementById("app-hidden-fields");
+      if(hiddenFields) hiddenFields.classList.add("d-none-important");
+      
       document.querySelectorAll('input[name="app-type"]').forEach(r => { r.disabled = true; r.checked = false; });
       document.getElementById("app-type-desc").innerHTML = '<i class="bi bi-info-circle text-muted"></i> 請先輸入病歷號檢核';
       document.getElementById("app-start-date").value = "";
